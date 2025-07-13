@@ -292,6 +292,13 @@ class ZontaxParser {
         const schema = this.generateSchemaString(mergedDefinition);
         return { schema, definition: mergedDefinition };
     }
+    getRegistrations() {
+        const namespaces = {};
+        for (const [name, extensionsMap] of this.namespacedExtensions.entries()) {
+            namespaces[name] = Array.from(extensionsMap.values());
+        }
+        return Object.assign({ _global: Array.from(this.globalExtensions.values()) }, namespaces);
+    }
     static getDefinitionByNamespace(definition, namespace) {
         const byNamespace = {};
         if (!definition || !definition.fields)

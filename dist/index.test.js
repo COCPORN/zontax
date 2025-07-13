@@ -69,6 +69,20 @@ describe('ZontaxParser', () => {
             expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
         });
     });
+    describe('Introspection', () => {
+        it('should return a map of all registered extensions', () => {
+            const parser = new index_1.ZontaxParser([
+                globalSchema,
+                { namespace: 'ui', extensions: uiSchema }
+            ]);
+            const registrations = parser.getRegistrations();
+            expect(Object.keys(registrations)).toEqual(['_global', 'ui']);
+            expect(registrations._global).toHaveLength(1);
+            expect(registrations.ui).toHaveLength(2);
+            expect(registrations._global[0].name).toBe('analyticsId');
+            expect(registrations.ui.find(e => e.name === 'label')).toBeDefined();
+        });
+    });
     describe('Static Helpers', () => {
         const parser = new index_1.ZontaxParser([
             { namespace: 'ui', extensions: uiSchema },
