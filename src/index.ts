@@ -89,7 +89,7 @@ export class ZontaxParser {
     return escodegen.generate(transformedAst.body[0].expression);
   }
 
-  private parseNode(node: any): any {
+  private parseNode(node: any, options?: { include?: string[] }): any {
     if (!node) return {};
 
     if (node.type === 'CallExpression') {
@@ -99,13 +99,15 @@ export class ZontaxParser {
             const callee = current.callee;
             if (callee.type === 'MemberExpression') {
                 const methodName = callee.property.name;
-                const args = current.arguments.map((arg: any) => this.parseNode(arg));
+                const args = current.arguments.map((arg: any) => this.parseNode(arg, options));
                 const extension = this.extensions.get(methodName);
 
                 if (extension) {
-                    const group = extension.outputGroup;
-                    if (!data[group]) data[group] = {};
-                    data[group][methodName] = args.length === 1 ? args[0] : args;
+                    if (!options?.include || options.include.includes(extension.outputGroup)) {
+                        const group = extension.outputGroup;
+                        if (!data[group]) data[group] = {};
+                        data[group][methodName] = args.length === 1 ? args[0] : args;
+                    }
                 } else if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
                     if (!data.validations) data.validations = {};
                     data.validations[methodName] = args.length > 0 ? args[0] : true;
@@ -123,10 +125,8 @@ export class ZontaxParser {
             }
             current = callee.object;
         }
-        // After the loop, if the base type hasn't been set (e.g. from z.string()),
-        // merge it from the result of parsing the base object (e.g. z.string())
         if (current.type === 'CallExpression') {
-            const baseData = this.parseNode(current);
+            const baseData = this.parseNode(current, options);
             data = {...baseData, ...data};
         }
 
@@ -136,7 +136,7 @@ export class ZontaxParser {
     if (node.type === 'ObjectExpression') {
         const fields: any = {};
         for (const prop of node.properties) {
-            fields[prop.key.name] = this.parseNode(prop.value);
+            fields[prop.key.name] = this.parseNode(prop.value, options);
         }
         return fields;
     }
@@ -144,22 +144,19 @@ export class ZontaxParser {
     if (node.type === 'Literal') {
         return node.value;
     }
-
-    // Fallback for things like z.string() which is a CallExpression on z
     if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'z') {
         return { type: node.property.name, validations: {} };
     }
 
-
     return escodegen.generate(node);
   }
 
-  extractMetadata(source: string): any {
+  extractMetadata(source: string, options?: { include?: string[] }): any {
     const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
     const startStatement = ast.body[0];
     if (startStatement.type !== 'ExpressionStatement') {
         throw new Error('Expected the Zontax string to start with an ExpressionStatement.');
     }
-    return this.parseNode(startStatement.expression);
+    return this.parseNode(startStatement.expression, options);
   }
 }
