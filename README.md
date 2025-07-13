@@ -13,8 +13,8 @@ This allows you to maintain a single source of truth for both data validation an
 - **Collaborative Schemas:** The namespace system allows teams and open-source projects to create and share reusable extension libraries.
 - **Intuitive Syntax:** Use a clean and visually distinct syntax (`ui$label(...)`) for applying namespaced extensions.
 - **Safe & Secure:** Parses your schema definition using an Abstract Syntax Tree (AST), with no reliance on `eval()` or other unsafe code execution.
-- **Flexible Modes:** Use `strict` mode for production and `loose` mode for rapid development.
-- **Helper Utilities:** Includes built-in static methods to easily query and transform the `definition` object.
+- **Flexible Modes:** Use `strict` mode for production and `loose` mode for rapid development and schema bootstrapping.
+- **Helper Utilities:** Includes built-in static methods to easily query and transform the `definition` object, and even generate new schemas.
 
 ## Installation
 
@@ -44,7 +44,7 @@ const schemaString = `
 ```
 
 **A single call to `parser.parse(schemaString)` returns:**
-```javascript
+```json
 {
   "schema": "z.object({ name: z.string().min(1), id: z.string().uuid() })",
   "definition": {
@@ -55,7 +55,7 @@ const schemaString = `
         "validations": { "min": 1 },
         "namespaces": {
           "ui": {
-            "label": { "category": "ui", "value": "Full Name" }
+            "label": { "value": "Full Name" }
           }
         }
       },
@@ -63,7 +63,7 @@ const schemaString = `
         "type": "string",
         "validations": { "uuid": true },
         "extensions": {
-          "analyticsId": { "category": "tracking", "value": "user-id" }
+          "analyticsId": { "value": "user-id" }
         }
       }
     }
@@ -75,38 +75,28 @@ const schemaString = `
 
 ### Registering Schemas and Namespaces
 
-The `ZontaxParser` constructor accepts an array of schema registrations.
+The `ZontaxParser` constructor accepts an array of schema registrations. The `Extension` schema is simple and no longer uses `category`.
 
 ```typescript
 import { ZontaxParser, Extension } from 'zontax';
 
 // Define a reusable schema for UI extensions
 const uiSchema: Extension[] = [
-  { name: 'label', allowedOn: ['string'], args: ['string'], category: 'ui' },
-  { name: 'placeholder', allowedOn: ['string'], args: ['string'], category: 'ui' }
-];
-
-// Define a global schema for this project
-const trackingSchema: Extension[] = [
-  { name: 'analyticsId', allowedOn: ['string'], args: ['string'], category: 'tracking' }
+  { name: 'label', allowedOn: ['string'], args: ['string'] },
+  { name: 'placeholder', allowedOn: ['string'], args: ['string'] }
 ];
 
 // Create a parser instance
 const parser = new ZontaxParser([
   // Register uiSchema under the 'ui' namespace
-  { namespace: 'ui', extensions: uiSchema },
-  
-  // Register trackingSchema to the global namespace
-  trackingSchema 
+  { namespace: 'ui', extensions: uiSchema }
 ]);
 ```
 
 ### Modes
 
-The parser can be configured with a `mode` option:
-
-- **`mode: 'strict'` (Default):** Throws an error for any unregistered method, whether global (`.unregistered()`) or namespaced (`.fake$unregistered()`).
-- **`mode: 'loose'`:** Captures any unregistered method and adds it to the `definition` object under the `extra` category.
+- **`mode: 'strict'` (Default):** Throws an error for any unregistered method.
+- **`mode: 'loose'`:** Captures any unregistered method, making it easy to prototype and evolve schemas.
 
 ### Helper Methods
 
@@ -116,12 +106,17 @@ Zontax includes static helper methods to make working with the `definition` obje
 
 This method returns a new object containing only the fields that have extensions from the specified namespace.
 
-```typescript
-const { definition } = parser.parse(someSchema);
-const uiView = ZontaxParser.getDefinitionByNamespace(definition, 'ui');
+#### `generateSchemaFromDefinition(definition, namespace?)`
 
-// uiView will contain only the 'name' and 'age' fields,
-// and only their 'ui' extensions.
+This powerful helper generates a formal `Extension[]` array from a `definition` object created in `loose` mode. This makes it incredibly easy to bootstrap a formal schema from a prototype.
+
+```typescript
+const looseParser = new ZontaxParser([], { mode: 'loose' });
+const { definition } = looseParser.parse('z.string().ui$label("Name")');
+
+// Generate a schema for the 'ui' namespace
+const generatedUiSchema = ZontaxParser.generateSchemaFromDefinition(definition, 'ui');
+// Result: [{ name: 'label', allowedOn: ['string'], args: ['string'] }]
 ```
 
 ## License

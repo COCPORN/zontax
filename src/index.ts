@@ -2,11 +2,11 @@ import * as acorn from 'acorn';
 import * as escodegen from 'escodegen';
 import { z } from 'zod';
 
+// --- NEW: Simplified, Category-less Schema ---
 export const ExtensionMethodSchema = z.object({
   name: z.string(),
   allowedOn: z.array(z.string()),
   args: z.array(z.string()),
-  category: z.string(),
   description: z.string().optional()
 });
 
@@ -93,20 +93,17 @@ export class ZontaxParser {
           const args = current.arguments.map((arg: any) => this.buildDefinition(arg));
           const [namespace, extName] = methodName.includes('$') ? methodName.split('$') : [null, methodName];
 
-          let extension: Extension | undefined;
-          if (namespace) {
-            extension = this.namespacedExtensions.get(namespace)?.get(extName);
-          } else {
-            extension = this.globalExtensions.get(extName);
-          }
+          const isRegistered = namespace 
+            ? this.namespacedExtensions.get(namespace)?.has(extName)
+            : this.globalExtensions.has(extName);
 
-          if (extension) {
-            const value = args.length === 1 ? args[0] : args;
+          if (isRegistered) {
+            const value = { value: args.length === 1 ? args[0] : args };
             if (namespace) {
               if (!data.namespaces[namespace]) data.namespaces[namespace] = {};
-              data.namespaces[namespace][extName] = { category: extension.category, value };
+              data.namespaces[namespace][extName] = value;
             } else {
-              data.extensions[extName] = { category: extension.category, value };
+              data.extensions[extName] = value;
             }
           } else if (KNOWN_ZOD_METHODS.includes(methodName)) {
             if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
@@ -124,12 +121,12 @@ export class ZontaxParser {
               data.of = args[0];
             }
           } else if (this.mode === 'loose') {
-            const value = args.length === 1 ? args[0] : args;
-            if (namespace) {
+            const value = { value: args.length === 1 ? args[0] : args };
+             if (namespace) {
                 if (!data.namespaces[namespace]) data.namespaces[namespace] = {};
-                data.namespaces[namespace][extName] = { category: 'extra', value };
+                data.namespaces[namespace][extName] = value;
             } else {
-                data.extensions[extName] = { category: 'extra', value };
+                data.extensions[extName] = value;
             }
           }
         }
@@ -212,5 +209,44 @@ export class ZontaxParser {
         }
     }
     return byNamespace;
+  }
+
+  public static generateSchemaFromDefinition(definition: any, namespace?: string): Extension[] {
+    const extensions: Extension[] = [];
+    if (!definition || !definition.fields) return extensions;
+
+    const seen = new Set<string>();
+
+    for (const fieldName in definition.fields) {
+        const field = definition.fields[fieldName];
+        const process = (exts: any, ns?: string) => {
+            if (!exts) return;
+            for (const extName in exts) {
+                const key = ns ? `${ns}$${extName}` : extName;
+                if (seen.has(key)) continue;
+                
+                const extValue = exts[extName].value;
+                const args = Array.isArray(extValue) ? extValue.map(v => typeof v) : [typeof extValue];
+
+                extensions.push({
+                    name: extName,
+                    allowedOn: [field.type], // A starting point
+                    args: args,
+                });
+                seen.add(key);
+            }
+        }
+        if (namespace) {
+            process(field.namespaces?.[namespace], namespace);
+        } else {
+            process(field.extensions);
+            if (field.namespaces) {
+                for (const nsName in field.namespaces) {
+                    process(field.namespaces[nsName], nsName);
+                }
+            }
+        }
+    }
+    return extensions;
   }
 }

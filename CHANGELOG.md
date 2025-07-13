@@ -9,15 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking Change:** Overhauled the entire API to support namespaces and schema composition.
-  - The `ZontaxParser` constructor now accepts an array of schema registrations, which can be global or namespaced.
-  - The `definition` object now has a new, more robust structure with top-level `extensions` and `namespaces` properties to prevent name collisions.
+- **Breaking Change:** Overhauled the entire API to support namespaces and a simpler, more robust data structure.
+  - The `category` property has been removed from the `ExtensionMethodSchema` in favor of namespaces.
+  - The `ZontaxParser` constructor now accepts a more flexible array of schema registrations.
+  - The `definition` object now has a cleaner, category-less structure.
 - The syntax for applying namespaced extensions is now `namespace$extension(...)`.
 
 ### Added
 
-- Added the static helper method `ZontaxParser.getDefinitionByNamespace()` to provide a convenient, category-first view of the definition object.
-- Added a comprehensive new test suite to validate the new API, syntax, and output structure.
+- Added the static helper method `ZontaxParser.generateSchemaFromDefinition()` to bootstrap formal schemas from a `definition` object created in `loose` mode.
+- Added the static helper method `ZontaxParser.getDefinitionByNamespace()` to provide a convenient, namespace-first view of the definition object.
 
 ## [0.3.0] - 2025-07-13
 
