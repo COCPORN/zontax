@@ -33,6 +33,20 @@ const KNOWN_ZOD_METHODS = [
   'int', 'positive', 'negative', 'describe', 'enum', 'literal', 'tuple', 'union'
 ];
 
+function visit(node: any, visitor: { [key: string]: (node: any) => any }) {
+    if (!node) return node;
+    for (const key in node) {
+        if (key === 'parent') continue;
+        const prop = node[key];
+        if (Array.isArray(prop)) {
+            node[key] = prop.map(child => visit(child, visitor)).filter(Boolean);
+        } else if (prop && typeof prop.type === 'string') {
+            node[key] = visit(prop, visitor);
+        }
+    }
+    return visitor[node.type] ? visitor[node.type](node) : node;
+}
+
 export class ZontaxParser {
   private globalExtensions = new Map<string, Extension>();
   private namespacedExtensions = new Map<string, Map<string, Extension>>();
@@ -72,7 +86,6 @@ export class ZontaxParser {
   }
 
   private buildDefinition(node: any): any {
-    // This function's logic is now simpler as it doesn't need to handle the full chain.
     if (node.type === 'ExpressionStatement') {
       return this.buildDefinition(node.expression);
     }
@@ -123,6 +136,8 @@ export class ZontaxParser {
                         if (!data.extensions) data.extensions = {};
                         data.extensions[extName] = { value: args.length === 1 ? args[0] : args };
                     }
+                } else {
+                    throw new ZontaxMergeError(`Unrecognized method '.${methodName}()'.`);
                 }
             }
             current = current.callee.object;
@@ -146,15 +161,17 @@ export class ZontaxParser {
     return escodegen.generate(node);
   }
 
-  private deepMergeDefinitions(defs: any[]): any {
+  private deepMergeDefinitions(defs: any[], path: string[] = []): any {
     if (defs.length === 0) return {};
     if (defs.length === 1) return defs[0];
 
-    const base = defs[0];
+    const base = JSON.parse(JSON.stringify(defs[0]));
     for (let i = 1; i < defs.length; i++) {
         const overlay = defs[i];
-        if (base.type !== overlay.type) {
-            throw new ZontaxMergeError(`Type mismatch: Cannot merge type '${overlay.type}' into '${base.type}'.`);
+        const currentPath = path.join('.');
+
+        if (base.type && overlay.type && base.type !== overlay.type) {
+            throw new ZontaxMergeError(`Type mismatch at schema index ${i} for field '${currentPath}': Cannot merge type '${overlay.type}' into '${base.type}'.`);
         }
         if (overlay.fields) {
             if (!base.fields) base.fields = {};
@@ -162,7 +179,7 @@ export class ZontaxParser {
                 if (!base.fields[fieldName]) {
                     base.fields[fieldName] = overlay.fields[fieldName];
                 } else {
-                    base.fields[fieldName] = this.deepMergeDefinitions([base.fields[fieldName], overlay.fields[fieldName]]);
+                    base.fields[fieldName] = this.deepMergeDefinitions([base.fields[fieldName], overlay.fields[fieldName]], [...path, fieldName]);
                 }
             }
         }
@@ -170,7 +187,7 @@ export class ZontaxParser {
             if (!base.validations) base.validations = {};
             for (const key in overlay.validations) {
                 if (base.validations[key] !== undefined && base.validations[key] !== overlay.validations[key]) {
-                    throw new ZontaxMergeError(`Validation conflict for '${key}'.`);
+                    throw new ZontaxMergeError(`Validation conflict at schema index ${i} for field '${currentPath}': Mismatch for validation '${key}'.`);
                 }
                 base.validations[key] = overlay.validations[key];
             }
@@ -194,8 +211,17 @@ export class ZontaxParser {
   }
 
   private generateSchemaString(def: any): string {
-      if (!def.type) return '';
-      let chain = `z.${def.type}()`;
+      if (!def || !def.type) return '';
+      let chain = '';
+      if (def.type === 'object') {
+          const fieldsStr = Object.entries(def.fields || {}).map(([key, value]) => `${key}: ${this.generateSchemaString(value)}`).join(', ');
+          chain = `z.object({ ${fieldsStr} })`;
+      } else if (def.type === 'array') {
+          chain = `z.array(${this.generateSchemaString(def.of)})`;
+      } else {
+          chain = `z.${def.type}()`;
+      }
+      
       if (def.validations) {
           for (const key in def.validations) {
               const value = def.validations[key];
@@ -204,13 +230,6 @@ export class ZontaxParser {
       }
       if (def.optional) {
           chain += '.optional()';
-      }
-      if (def.fields) {
-          const fieldsStr = Object.entries(def.fields).map(([key, value]) => `${key}: ${this.generateSchemaString(value)}`).join(', ');
-          chain = `z.object({ ${fieldsStr} })`;
-      }
-      if (def.of) {
-          chain = `z.array(${this.generateSchemaString(def.of)})`;
       }
       return chain;
   }
@@ -228,5 +247,62 @@ export class ZontaxParser {
     const schema = this.generateSchemaString(mergedDefinition);
 
     return { schema, definition: mergedDefinition };
+  }
+
+  public static getDefinitionByNamespace(definition: any, namespace: string): Record<string, any> {
+    const byNamespace: Record<string, any> = {};
+    if (!definition || !definition.fields) return byNamespace;
+
+    for (const fieldName in definition.fields) {
+        const field = definition.fields[fieldName];
+        if (field.namespaces && field.namespaces[namespace]) {
+            byNamespace[fieldName] = {
+                ...field,
+                namespaces: {
+                    [namespace]: field.namespaces[namespace]
+                }
+            };
+        }
+    }
+    return byNamespace;
+  }
+
+  public static generateSchemaFromDefinition(definition: any, namespace?: string): Extension[] {
+    const extensions: Extension[] = [];
+    if (!definition || !definition.fields) return extensions;
+
+    const seen = new Set<string>();
+
+    for (const fieldName in definition.fields) {
+        const field = definition.fields[fieldName];
+        const process = (exts: any, ns?: string) => {
+            if (!exts) return;
+            for (const extName in exts) {
+                const key = ns ? `${ns}$${extName}` : extName;
+                if (seen.has(key)) continue;
+                
+                const extValue = exts[extName].value;
+                const args = Array.isArray(extValue) ? extValue.map(v => typeof v) : [typeof extValue];
+
+                extensions.push({
+                    name: extName,
+                    allowedOn: [field.type], // A starting point
+                    args: args,
+                });
+                seen.add(key);
+            }
+        }
+        if (namespace) {
+            process(field.namespaces?.[namespace], namespace);
+        } else {
+            process(field.extensions);
+            if (field.namespaces) {
+                for (const nsName in field.namespaces) {
+                    process(field.namespaces[nsName], nsName);
+                }
+            }
+        }
+    }
+    return extensions;
   }
 }

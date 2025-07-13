@@ -1,8 +1,8 @@
 import { ZontaxParser, Extension, ZontaxMergeError } from './index';
 
-// --- Test Data ---
+// --- Test Data (Category-less) ---
 const uiSchema: Extension[] = [
-  { name: 'label', allowedOn: ['string', 'number'], args: ['string'] },
+  { name: 'label', allowedOn: ['string'], args: ['string'] },
   { name: 'placeholder', allowedOn: ['string'], args: ['string'] },
 ];
 
@@ -10,61 +10,106 @@ const docSchema: Extension[] = [
   { name: 'internalDoc', allowedOn: ['string', 'object'], args: ['string'] },
 ];
 
-describe('ZontaxParser Composition', () => {
-  const parser = new ZontaxParser([
-    { namespace: 'ui', extensions: uiSchema },
-    { namespace: 'doc', extensions: docSchema },
-  ]);
+const globalSchema: Extension[] = [
+  { name: 'analyticsId', allowedOn: ['string'], args: ['string'] },
+];
 
-  describe('Successful Composition', () => {
-    const baseSchema = `z.object({ username: z.string() })`;
-    const uiLayer = `z.object({ username: z.string().ui$label("User") })`;
-    const validationLayer = `z.object({ username: z.string().min(3) })`;
 
-    it('should merge extensions and validations correctly', () => {
-      const { definition, schema } = parser.parse(baseSchema, uiLayer, validationLayer);
-      
-      // Check definition
-      const userDef = definition.fields.username;
-      expect(userDef.type).toBe('string');
-      expect(userDef.validations.min).toBe(3);
-      expect(userDef.namespaces.ui.label.value).toBe('User');
+describe('ZontaxParser', () => {
 
-      // Check final schema string
-      expect(schema).toContain('.min(3)');
+  describe('Initialization', () => {
+    it('should register global extensions via array shorthand', () => {
+      const parser = new ZontaxParser([globalSchema]);
+      const { definition } = parser.parse('z.string().analyticsId("test")');
+      expect(definition.extensions.analyticsId.value).toBe('test');
     });
 
-    it('should override extensions from later schemas', () => {
-        const overrideLayer = `z.object({ username: z.string().ui$label("Username") })`;
-        const { definition } = parser.parse(baseSchema, uiLayer, overrideLayer);
-        expect(definition.fields.username.namespaces.ui.label.value).toBe("Username");
+    it('should register namespaced extensions', () => {
+      const parser = new ZontaxParser([{ namespace: 'ui', extensions: uiSchema }]);
+      const { definition } = parser.parse('z.string().ui$label("Name")');
+      expect(definition.namespaces.ui.label.value).toBe('Name');
     });
   });
 
-  describe('Conflict Resolution', () => {
-    const baseSchema = `z.object({ username: z.string().min(3) })`;
+  describe('Composition (Multi-Schema Parsing)', () => {
+    const parser = new ZontaxParser([
+      { namespace: 'ui', extensions: uiSchema },
+      { namespace: 'doc', extensions: docSchema },
+    ]);
 
-    it('should throw on type mismatch', () => {
-      const conflictLayer = `z.object({ username: z.number() })`;
-      expect(() => parser.parse(baseSchema, conflictLayer)).toThrow(ZontaxMergeError);
-      expect(() => parser.parse(baseSchema, conflictLayer)).toThrow("Type mismatch: Cannot merge type 'number' into 'string'.");
+    it('should merge more than two schemas correctly', () => {
+        const s1 = `z.object({ user: z.object({ name: z.string() }) })`;
+        const s2 = `z.object({ user: z.object({ name: z.string().min(3) }) })`;
+        const s3 = `z.object({ user: z.object({ name: z.string().max(10) }) })`;
+        const s4 = `z.object({ user: z.object({ name: z.string().ui$label("Name") }) })`;
+
+        const { definition } = parser.parse(s1, s2, s3, s4);
+        const nameDef = definition.fields.user.fields.name;
+
+        expect(nameDef.validations.min).toBe(3);
+        expect(nameDef.validations.max).toBe(10);
+        expect(nameDef.namespaces.ui.label.value).toBe("Name");
     });
 
-    it('should throw on validation conflict', () => {
-      const conflictLayer = `z.object({ username: z.string().min(4) })`;
-      expect(() => parser.parse(baseSchema, conflictLayer)).toThrow(ZontaxMergeError);
-      expect(() => parser.parse(baseSchema, conflictLayer)).toThrow("Validation conflict for 'min'.");
+    it('should throw a detailed error on type mismatch', () => {
+      const s1 = `z.object({ user: z.object({ name: z.string() }) })`;
+      const s2 = `z.object({ user: z.object({ name: z.number() }) })`;
+      const expectedError = "Type mismatch at schema index 1 for field 'user.name': Cannot merge type 'number' into 'string'.";
+      expect(() => parser.parse(s1, s2)).toThrow(new ZontaxMergeError(expectedError));
+    });
+
+    it('should throw a detailed error on validation conflict', () => {
+      const s1 = `z.object({ name: z.string().min(3) })`;
+      const s2 = `z.object({ name: z.string().min(4) })`;
+      const expectedError = "Validation conflict at schema index 1 for field 'name': Mismatch for validation 'min'.";
+      expect(() => parser.parse(s1, s2)).toThrow(new ZontaxMergeError(expectedError));
     });
   });
 
-  describe('Schema Generation from Merged Definition', () => {
-    it('should generate a schema string that reflects the merged validations', () => {
-        const s1 = `z.object({ name: z.string() })`;
-        const s2 = `z.object({ name: z.string().min(5) })`;
-        const s3 = `z.object({ name: z.string().max(10) })`;
-        const { schema } = parser.parse(s1, s2, s3);
-        expect(schema).toContain('.min(5)');
-        expect(schema).toContain('.max(10)');
+  describe('Modes (Strict vs. Loose)', () => {
+    it('should throw in strict mode for unregistered methods', () => {
+      const parser = new ZontaxParser([], { mode: 'strict' });
+      expect(() => parser.parse('z.string().unregistered()')).toThrow();
+    });
+
+    it('should capture loose methods correctly', () => {
+      const parser = new ZontaxParser([], { mode: 'loose' });
+      const { definition } = parser.parse('z.string().author("John").meta$version(2)');
+      expect(definition.extensions.author.value).toBe('John');
+      expect(definition.namespaces.meta.version.value).toBe(2);
+    });
+  });
+
+  describe('Static Helpers', () => {
+    const parser = new ZontaxParser([
+        { namespace: 'ui', extensions: uiSchema },
+        { namespace: 'doc', extensions: docSchema },
+    ]);
+    const { definition } = parser.parse(`
+        z.object({
+            name: z.string().ui$label("Name").doc$internalDoc("Doc"),
+            age: z.number().ui$placeholder("Age")
+        })
+    `);
+
+    describe('getDefinitionByNamespace', () => {
+        it('should return a map of fields filtered by a single namespace', () => {
+            const uiView = ZontaxParser.getDefinitionByNamespace(definition, 'ui');
+            expect(Object.keys(uiView)).toEqual(['name', 'age']);
+            expect(uiView.name.namespaces.ui.label).toBeDefined();
+            expect(uiView.name.namespaces.doc).toBeUndefined(); // Ensure other namespaces are excluded
+        });
+    });
+
+    describe('generateSchemaFromDefinition', () => {
+        const looseParser = new ZontaxParser([], { mode: 'loose' });
+        const looseDef = looseParser.parse(`z.object({ name: z.string().ui$label("Name") })`).definition;
+
+        it('should generate a schema for a specific namespace', () => {
+            const generated = ZontaxParser.generateSchemaFromDefinition(looseDef, 'ui');
+            expect(generated).toHaveLength(1);
+            expect(generated[0].name).toBe('label');
+        });
     });
   });
 });

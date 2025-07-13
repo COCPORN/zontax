@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-07-13
+
+### Changed
+- **Breaking Change:** The `parse` method now accepts multiple schema strings (`parse(...sources: string[])`) and acts as a composition engine.
+- **Breaking Change:** The internal parsing logic has been completely rewritten to support the new "Intelligent Deep Merge" strategy.
+
+### Added
+- The parser now intelligently merges multiple schemas, combining extensions and adding validations.
+- The parser now throws a `ZontaxMergeError` on type or validation conflicts.
+- The parser now generates the final schema string from the *merged* definition, ensuring it reflects the complete set of validations.
+
 ## [0.4.0] - 2025-07-13
 
 ### Changed
