@@ -52,21 +52,34 @@ const schemaString = `
 **A single call to `parser.parse(schemaString)` returns:**
 ```javascript
 {
-  schema: 'z.object({name:z.string().min(1),age:z.number().min(0).optional()})',
+  schema: 'z.object({ name: z.string().min(1), age: z.number().min(0).optional() })',
   definition: {
     type: 'object',
     fields: {
       name: {
         type: 'string',
         validations: { min: 1 },
-        ui: { label: 'Full Name' },
-        doc: { internalDoc: 'Primary user identifier' }
+        extensions: {
+          label: {
+            category: 'ui',
+            value: 'Full Name'
+          },
+          internalDoc: {
+            category: 'doc',
+            value: 'Primary user identifier'
+          }
+        }
       },
       age: {
         type: 'number',
         optional: true,
         validations: { min: 0 },
-        ui: { label: 'Age' }
+        extensions: {
+          label: {
+            category: 'ui',
+            value: 'Age'
+          }
+        }
       }
     }
   }
@@ -156,7 +169,7 @@ expect(() => parser.parse(invalidInput)).toThrow();
 
 #### `mode: 'loose'`
 
-In `loose` mode, the parser will not throw an error for unregistered methods. Instead, it will automatically capture them and place them in a special `extra` category within the `definition` object. This is useful for rapid development or for schemas where you don't need to formally define every possible piece of metadata.
+In `loose` mode, the parser will not throw an error for unregistered methods. Instead, it will automatically capture them and place them in the `extensions` object with a category of `extra`. This is useful for rapid development or for schemas where you don't need to formally define every possible piece of metadata.
 
 ```typescript
 const parser = new ZontaxParser(myExtensions, { mode: 'loose' });
@@ -164,10 +177,16 @@ const looseInput = `z.string().author("John Doe").deprecated(true)`;
 const { definition } = parser.parse(looseInput);
 
 /*
-definition.extra will be:
+definition.extensions will be:
 {
-  "author": "John Doe",
-  "deprecated": true
+  "author": {
+    "category": "extra",
+    "value": "John Doe"
+  },
+  "deprecated": {
+    "category": "extra",
+    "value": true
+  }
 }
 */
 ```

@@ -59,7 +59,7 @@ export class ZontaxParser {
         return this.buildDefinition(node.expression, options);
     }
     if (node.type === 'CallExpression') {
-        let data: any = {};
+        let data: any = { extensions: {} };
         let current = node;
         while (current && current.type === 'CallExpression') {
             const callee = current.callee;
@@ -70,9 +70,10 @@ export class ZontaxParser {
 
                 if (extension) {
                     if (!options?.categories || options.categories.includes(extension.category)) {
-                        const category = extension.category;
-                        if (!data[category]) data[category] = {};
-                        data[category][methodName] = args.length === 1 ? args[0] : args;
+                        data.extensions[methodName] = {
+                            category: extension.category,
+                            value: args.length === 1 ? args[0] : args,
+                        };
                     }
                 } else if (KNOWN_ZOD_METHODS.includes(methodName)) {
                     if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
@@ -91,8 +92,10 @@ export class ZontaxParser {
                     }
                 } else if (this.mode === 'loose') {
                     if (!options?.categories || options.categories.includes('extra')) {
-                        if (!data.extra) data.extra = {};
-                        data.extra[methodName] = args.length === 1 ? args[0] : args;
+                        data.extensions[methodName] = {
+                            category: 'extra',
+                            value: args.length === 1 ? args[0] : args,
+                        };
                     }
                 }
             }
@@ -100,7 +103,11 @@ export class ZontaxParser {
         }
         if (current.type === 'CallExpression') {
             const baseData = this.buildDefinition(current, options);
-            data = {...baseData, ...data};
+            data = {...baseData, ...data, extensions: { ...baseData.extensions, ...data.extensions }};
+        }
+        // Clean up empty extensions object
+        if (Object.keys(data.extensions).length === 0) {
+            delete data.extensions;
         }
         return data;
     }
@@ -113,7 +120,7 @@ export class ZontaxParser {
     }
     if (node.type === 'Literal') return node.value;
     if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'z') {
-        return { type: node.property.name, validations: {} };
+        return { type: node.property.name, validations: {}, extensions: {} };
     }
     return escodegen.generate(node);
   }

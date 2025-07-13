@@ -66,14 +66,16 @@ describe('ZontaxParser', () => {
         expect(definition.fields.age.optional).toBe(true);
 
         // Check for custom extension parts
-        expect(definition.fields.name.ui.label).toBe("Full Name");
-        expect(definition.fields.name.doc.internalDoc).toBe("User's full name");
+        expect(definition.fields.name.extensions.label.value).toBe("Full Name");
+        expect(definition.fields.name.extensions.label.category).toBe("ui");
+        expect(definition.fields.name.extensions.internalDoc.value).toBe("User's full name");
+        expect(definition.fields.name.extensions.internalDoc.category).toBe("doc");
     });
 
     it('should filter definition based on categories option', () => {
         const { definition } = parser.parse(input, { categories: ['ui'] });
-        expect(definition.fields.name.ui.label).toBe("Full Name");
-        expect(definition.fields.name.doc).toBeUndefined();
+        expect(definition.fields.name.extensions.label).toBeDefined();
+        expect(definition.fields.name.extensions.internalDoc).toBeUndefined();
     });
 
     it('should throw an error for unregistered methods in strict mode (default)', () => {
@@ -102,8 +104,10 @@ describe('ZontaxParser', () => {
 
     it('should parse unregistered methods into the "extra" category', () => {
       const { definition } = looseParser.parse(input);
-      expect(definition.fields.name.extra.author).toBe("John Doe");
-      expect(definition.fields.age.extra.deprecated).toBe(true);
+      expect(definition.fields.name.extensions.author.value).toBe("John Doe");
+      expect(definition.fields.name.extensions.author.category).toBe("extra");
+      expect(definition.fields.age.extensions.deprecated.value).toBe(true);
+      expect(definition.fields.age.extensions.deprecated.category).toBe("extra");
     });
 
     it('should correctly strip loose methods from the schema string', () => {
@@ -114,14 +118,14 @@ describe('ZontaxParser', () => {
 
     it('should still parse registered extensions correctly', () => {
       const { definition } = looseParser.parse(input);
-      expect(definition.fields.name.ui.label).toBe("Full Name");
-      expect(definition.fields.age.ui.label).toBe("Age");
+      expect(definition.fields.name.extensions.label.value).toBe("Full Name");
+      expect(definition.fields.name.extensions.label.category).toBe("ui");
     });
 
     it('should filter the "extra" category if specified', () => {
       const { definition } = looseParser.parse(input, { categories: ['ui'] });
-      expect(definition.fields.name.extra).toBeUndefined();
-      expect(definition.fields.name.ui.label).toBe("Full Name");
+      expect(definition.fields.name.extensions.author).toBeUndefined();
+      expect(definition.fields.name.extensions.label).toBeDefined();
     });
   });
 });
