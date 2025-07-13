@@ -110,6 +110,18 @@ const parser = new ZontaxParser([
 ]);
 ```
 
+### Introspection
+
+You can inspect the parser's configuration at any time.
+
+#### `getRegistrations()`
+Returns a map of all registered extensions, keyed by their namespace. Global extensions are stored under the `_global` key.
+
+```typescript
+const registrations = parser.getRegistrations();
+// { _global: [...], ui: [...] }
+```
+
 ### Helper Methods
 
 Zontax includes static helper methods to make working with the `definition` object easier.

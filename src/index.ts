@@ -254,6 +254,18 @@ export class ZontaxParser {
     return { schema, definition: mergedDefinition };
   }
 
+  public getRegistrations(): Record<string, Extension[]> {
+    const namespaces: Record<string, Extension[]> = {};
+    for (const [name, extensionsMap] of this.namespacedExtensions.entries()) {
+      namespaces[name] = Array.from(extensionsMap.values());
+    }
+
+    return {
+      _global: Array.from(this.globalExtensions.values()),
+      ...namespaces
+    };
+  }
+
   public static getDefinitionByNamespace(definition: any, namespace: string): Record<string, any> {
     const byNamespace: Record<string, any> = {};
     if (!definition || !definition.fields) return byNamespace;
