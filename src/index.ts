@@ -142,7 +142,7 @@ export class ZontaxParser {
             }
             current = current.callee.object;
         }
-        if (current && current.type === 'MemberExpression' && current.object.name === 'z') {
+        if (current && current.type === 'MemberExpression' && current.object.name === 'Z') {
             data.type = current.property.name;
         }
         return data;
@@ -155,7 +155,7 @@ export class ZontaxParser {
         return { type: 'object', fields };
     }
     if (node.type === 'Literal') return node.value;
-    if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'z') {
+    if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'Z') {
         return { type: node.property.name };
     }
     return escodegen.generate(node);

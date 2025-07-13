@@ -32,12 +32,12 @@ The `ZontaxParser` can take multiple schema strings and merge them intelligently
 
 **`base.schema.js`**
 ```javascript
-const baseSchema = `z.object({ username: z.string().min(3) })`;
+const baseSchema = `Z.object({ username: Z.string().min(3) })`;
 ```
 
 **`ui.schema.js`**
 ```javascript
-const uiSchema = `z.object({ username: z.string().ui$label("Username") })`;
+const uiSchema = `Z.object({ username: Z.string().ui$label("Username") })`;
 ```
 
 **Composition:**

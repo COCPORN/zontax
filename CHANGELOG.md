@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-07-13
+
+### Changed
+- **Breaking Change:** The root identifier for all Zontax schemas has been changed from `z` to `Z` to create a distinct brand identity and prevent tooling conflicts.
+
 ## [0.5.0] - 2025-07-13
 
 ### Changed
