@@ -2,19 +2,19 @@
 
 Zontax is a powerful superset of the Zod schema language that allows you to embed arbitrary metadata directly within your schema definitions. It provides a parser that transforms and composes multiple schema strings into two separate, useful outputs:
 
-1.  A **clean, merged Zod schema string** for validation.
+1.  A **clean, merged Zod schema string** (using lowercase `z`) for validation.
 2.  A **structured JSON `definition` object** containing all the extracted metadata, perfect for UI generation, documentation, or API behavior.
 
-This allows you to maintain a single source of truth for both data validation and any contextual information attached to your data structures, even when those concerns are separated across different files or modules.
+This allows you to maintain a single source of truth for both data validation and any contextual information attached to your data structures.
 
 ## Key Features
 
-- **Schema Composition:** Intelligently deep-merge multiple schema strings into a single, unified definition.
-- **Conflict Detection:** Automatically throws an error on conflicting types or validations during a merge, ensuring schema integrity.
+- **Distinct Syntax:** Uses a capital `Z` (`Z.object`) to clearly distinguish Zontax schemas from standard Zod schemas.
 - **Namespaces:** Register extensions under namespaces (`ui`, `doc`, etc.) to prevent name collisions and organize your schemas.
-- **Intuitive Syntax:** Use a clean and visually distinct syntax (`ui$label(...)`) for applying namespaced extensions.
-- **Flexible Modes:** Use `strict` mode for production and `loose` mode for rapid development and schema bootstrapping.
-- **Helper Utilities:** Includes built-in static methods to easily query the `definition` object and generate new schemas from it.
+- **Schema Composition:** Intelligently deep-merge multiple schema strings into a single, unified definition.
+- **Conflict Detection:** Automatically throws an error on conflicting types or validations during a merge.
+- **Flexible Modes:** Use `strict` mode for production and `loose` mode for rapid development.
+- **Helper Utilities:** Includes built-in static methods to query the `definition` object and generate new schemas from it.
 
 ## Installation
 
@@ -26,9 +26,49 @@ npm install zontax
 yarn add zontax
 ```
 
-## How It Works: Composition
+## How It Works: A Simple Example
 
-The `ZontaxParser` can take multiple schema strings and merge them intelligently.
+The `ZontaxParser` takes a Zontax string (using `Z.`) and returns a standard Zod string (using `z.`) and a structured `definition` object.
+
+**Given this Zontax string:**
+```javascript
+const schemaString = `
+  Z.object({
+    name: Z.string().min(1).ui$label("Full Name"),
+    id: Z.string().uuid().analyticsId("user-id")
+  })
+`;
+```
+
+**A single call to `parser.parse(schemaString)` returns:**
+```json
+{
+  "schema": "z.object({ name: z.string().min(1), id: z.string().uuid() })",
+  "definition": {
+    "type": "object",
+    "fields": {
+      "name": {
+        "type": "string",
+        "validations": { "min": 1 },
+        "namespaces": {
+          "ui": { "label": { "value": "Full Name" } }
+        }
+      },
+      "id": {
+        "type": "string",
+        "validations": { "uuid": true },
+        "extensions": {
+          "analyticsId": { "value": "user-id" }
+        }
+      }
+    }
+  }
+}
+```
+
+## Schema Composition
+
+A key feature of Zontax is its ability to compose multiple schemas. The `parse` method accepts multiple strings and merges them using an "Intelligent Deep Merge" strategy.
 
 **`base.schema.js`**
 ```javascript
@@ -64,6 +104,7 @@ const uiSchema: Extension[] = [
   { name: 'label', allowedOn: ['string'], args: ['string'] },
 ];
 
+// Register uiSchema under the 'ui' namespace
 const parser = new ZontaxParser([
   { namespace: 'ui', extensions: uiSchema }
 ]);
