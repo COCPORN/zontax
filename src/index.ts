@@ -12,6 +12,15 @@ export const ExtensionMethodSchema = z.object({
 
 export type Extension = z.infer<typeof ExtensionMethodSchema>;
 
+interface SchemaRegistrationObject {
+  namespace?: string;
+  extensions: Extension[];
+}
+type SchemaRegistration = Extension[] | SchemaRegistrationObject;
+interface ZontaxParserOptions {
+  mode?: 'strict' | 'loose';
+}
+
 const KNOWN_ZOD_METHODS = [
   'string', 'number', 'boolean', 'date', 'object', 'array',
   'min', 'max', 'length', 'email', 'url', 'uuid', 'optional', 'nullable', 'default',
@@ -20,7 +29,6 @@ const KNOWN_ZOD_METHODS = [
 
 function visit(node: any, visitor: { [key: string]: (node: any) => any }) {
     if (!node) return node;
-
     for (const key in node) {
         if (key === 'parent') continue;
         const prop = node[key];
@@ -30,123 +38,154 @@ function visit(node: any, visitor: { [key: string]: (node: any) => any }) {
             node[key] = visit(prop, visitor);
         }
     }
-
     return visitor[node.type] ? visitor[node.type](node) : node;
 }
 
 export class ZontaxParser {
-  private extensions = new Map<string, Extension>();
+  private globalExtensions = new Map<string, Extension>();
+  private namespacedExtensions = new Map<string, Map<string, Extension>>();
   private mode: 'strict' | 'loose';
 
-  constructor(initialExtensions: Extension[] = [], options: { mode?: 'strict' | 'loose' } = {}) {
+  constructor(registrations: SchemaRegistration[] = [], options: ZontaxParserOptions = {}) {
     this.mode = options.mode || 'strict';
-    for (const ext of initialExtensions) {
-      this.register(ext);
+    for (const reg of registrations) {
+      if (Array.isArray(reg)) {
+        this.registerGlobal(reg);
+      } else {
+        if (reg.namespace) {
+          this.registerNamespace(reg.namespace, reg.extensions);
+        } else {
+          this.registerGlobal(reg.extensions);
+        }
+      }
     }
   }
 
-  register(extension: Extension) {
-    ExtensionMethodSchema.parse(extension);
-    this.extensions.set(extension.name, extension);
+  private registerGlobal(extensions: Extension[]) {
+    for (const ext of extensions) {
+      ExtensionMethodSchema.parse(ext);
+      this.globalExtensions.set(ext.name, ext);
+    }
   }
 
-  getRegisteredExtensions(): Extension[] {
-    return Array.from(this.extensions.values());
+  private registerNamespace(namespace: string, extensions: Extension[]) {
+    if (!this.namespacedExtensions.has(namespace)) {
+      this.namespacedExtensions.set(namespace, new Map());
+    }
+    const nsMap = this.namespacedExtensions.get(namespace)!;
+    for (const ext of extensions) {
+      ExtensionMethodSchema.parse(ext);
+      nsMap.set(ext.name, ext);
+    }
   }
 
-  private buildDefinition(node: any, options?: { categories?: string[] }): any {
+  private buildDefinition(node: any): any {
     if (node.type === 'ExpressionStatement') {
-        return this.buildDefinition(node.expression, options);
+      return this.buildDefinition(node.expression);
     }
     if (node.type === 'CallExpression') {
-        let data: any = { extensions: {} };
-        let current = node;
-        while (current && current.type === 'CallExpression') {
-            const callee = current.callee;
-            if (callee.type === 'MemberExpression') {
-                const methodName = callee.property.name;
-                const args = current.arguments.map((arg: any) => this.buildDefinition(arg, options));
-                const extension = this.extensions.get(methodName);
+      let data: any = { extensions: {}, namespaces: {} };
+      let current = node;
+      while (current && current.type === 'CallExpression') {
+        const callee = current.callee;
+        if (callee.type === 'MemberExpression') {
+          const methodName = callee.property.name;
+          const args = current.arguments.map((arg: any) => this.buildDefinition(arg));
+          const [namespace, extName] = methodName.includes('$') ? methodName.split('$') : [null, methodName];
 
-                if (extension) {
-                    if (!options?.categories || options.categories.includes(extension.category)) {
-                        data.extensions[methodName] = {
-                            category: extension.category,
-                            value: args.length === 1 ? args[0] : args,
-                        };
-                    }
-                } else if (KNOWN_ZOD_METHODS.includes(methodName)) {
-                    if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
-                        if (!data.validations) data.validations = {};
-                        data.validations[methodName] = args.length > 0 ? args[0] : true;
-                    } else if (['string', 'number', 'boolean', 'date'].includes(methodName)) {
-                        data.type = methodName;
-                    } else if (methodName === 'optional') {
-                        data.optional = true;
-                    } else if (methodName === 'object') {
-                        data.type = 'object';
-                        data.fields = args[0];
-                    } else if (methodName === 'array') {
-                        data.type = 'array';
-                        data.of = args[0];
-                    }
-                } else if (this.mode === 'loose') {
-                    if (!options?.categories || options.categories.includes('extra')) {
-                        data.extensions[methodName] = {
-                            category: 'extra',
-                            value: args.length === 1 ? args[0] : args,
-                        };
-                    }
-                }
+          let extension: Extension | undefined;
+          if (namespace) {
+            extension = this.namespacedExtensions.get(namespace)?.get(extName);
+          } else {
+            extension = this.globalExtensions.get(extName);
+          }
+
+          if (extension) {
+            const value = args.length === 1 ? args[0] : args;
+            if (namespace) {
+              if (!data.namespaces[namespace]) data.namespaces[namespace] = {};
+              data.namespaces[namespace][extName] = { category: extension.category, value };
+            } else {
+              data.extensions[extName] = { category: extension.category, value };
             }
-            current = callee.object;
+          } else if (KNOWN_ZOD_METHODS.includes(methodName)) {
+            if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
+              if (!data.validations) data.validations = {};
+              data.validations[methodName] = args.length > 0 ? args[0] : true;
+            } else if (['string', 'number', 'boolean', 'date'].includes(methodName)) {
+              data.type = methodName;
+            } else if (methodName === 'optional') {
+              data.optional = true;
+            } else if (methodName === 'object') {
+              data.type = 'object';
+              data.fields = args[0].fields;
+            } else if (methodName === 'array') {
+              data.type = 'array';
+              data.of = args[0];
+            }
+          } else if (this.mode === 'loose') {
+            const value = args.length === 1 ? args[0] : args;
+            if (namespace) {
+                if (!data.namespaces[namespace]) data.namespaces[namespace] = {};
+                data.namespaces[namespace][extName] = { category: 'extra', value };
+            } else {
+                data.extensions[extName] = { category: 'extra', value };
+            }
+          }
         }
-        if (current.type === 'CallExpression') {
-            const baseData = this.buildDefinition(current, options);
-            data = {...baseData, ...data, extensions: { ...baseData.extensions, ...data.extensions }};
-        }
-        // Clean up empty extensions object
-        if (Object.keys(data.extensions).length === 0) {
-            delete data.extensions;
-        }
-        return data;
+        current = current.callee.object;
+      }
+      
+      if (current && current.type === 'MemberExpression' && current.object.name === 'z') {
+          data.type = current.property.name;
+      }
+
+      if (Object.keys(data.extensions).length === 0) delete data.extensions;
+      if (Object.keys(data.namespaces).length === 0) delete data.namespaces;
+      return data;
     }
     if (node.type === 'ObjectExpression') {
-        const fields: any = {};
-        for (const prop of node.properties) {
-            fields[prop.key.name] = this.buildDefinition(prop.value, options);
-        }
-        return fields;
+      const fields: any = {};
+      for (const prop of node.properties) {
+        fields[prop.key.name] = this.buildDefinition(prop.value);
+      }
+      return { type: 'object', fields };
     }
     if (node.type === 'Literal') return node.value;
     if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'z') {
-        return { type: node.property.name, validations: {}, extensions: {} };
+      return { type: node.property.name };
     }
     return escodegen.generate(node);
   }
 
-  parse(source: string, options?: { categories?: string[] }) {
+  parse(source: string) {
     const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
-    const extensionNames = Array.from(this.extensions.keys());
+    const definition = this.buildDefinition(ast.body[0]);
 
-    // Build definition from the original AST, passing the options
-    const definition = this.buildDefinition(ast.body[0], options);
-
-    // Clone the AST for transformation to avoid side effects
-    const astForSchema = JSON.parse(JSON.stringify(ast));
-
-    const transformedAst = visit(astForSchema, {
+    const transformedAst = visit(JSON.parse(JSON.stringify(ast)), {
       CallExpression: (node: any) => {
         if (node.callee.type === 'MemberExpression' && node.callee.property.type === 'Identifier') {
           const methodName = node.callee.property.name;
-          if (this.extensions.has(methodName)) {
-            return node.callee.object; // Strip the extension method call
+          const [namespace, extName] = methodName.includes('$') ? methodName.split('$') : [null, methodName];
+          
+          let isRegisteredExtension = false;
+          if (namespace) {
+            isRegisteredExtension = this.namespacedExtensions.has(namespace) && this.namespacedExtensions.get(namespace)!.has(extName);
+          } else {
+            isRegisteredExtension = this.globalExtensions.has(extName);
           }
-          if (!KNOWN_ZOD_METHODS.includes(methodName)) {
+
+          if (isRegisteredExtension) {
+            return node.callee.object;
+          }
+          
+          const isKnownZod = KNOWN_ZOD_METHODS.includes(methodName);
+          if (!isKnownZod) {
             if (this.mode === 'strict') {
-              throw new Error(`Unrecognized method '.${methodName}()'. Please register it as an extension or use loose mode.`);
+              throw new Error(`Unrecognized method '.${methodName}()'.`);
+            } else { // loose mode
+              return node.callee.object;
             }
-            return node.callee.object; // Strip the loose method call
           }
         }
         return node;
@@ -154,7 +193,24 @@ export class ZontaxParser {
     });
 
     const schema = escodegen.generate(transformedAst.body[0].expression);
-
     return { schema, definition };
+  }
+
+  public static getDefinitionByNamespace(definition: any, namespace: string): Record<string, any> {
+    const byNamespace: Record<string, any> = {};
+    if (!definition || !definition.fields) return byNamespace;
+
+    for (const fieldName in definition.fields) {
+        const field = definition.fields[fieldName];
+        if (field.namespaces && field.namespaces[namespace]) {
+            byNamespace[fieldName] = {
+                ...field,
+                namespaces: {
+                    [namespace]: field.namespaces[namespace]
+                }
+            };
+        }
+    }
+    return byNamespace;
   }
 }

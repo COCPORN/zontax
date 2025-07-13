@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-07-13
+
+### Changed
+
+- **Breaking Change:** Overhauled the entire API to support namespaces and schema composition.
+  - The `ZontaxParser` constructor now accepts an array of schema registrations, which can be global or namespaced.
+  - The `definition` object now has a new, more robust structure with top-level `extensions` and `namespaces` properties to prevent name collisions.
+- The syntax for applying namespaced extensions is now `namespace$extension(...)`.
+
+### Added
+
+- Added the static helper method `ZontaxParser.getDefinitionByNamespace()` to provide a convenient, category-first view of the definition object.
+- Added a comprehensive new test suite to validate the new API, syntax, and output structure.
+
 ## [0.3.0] - 2025-07-13
 
 ### Added

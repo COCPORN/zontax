@@ -1,22 +1,20 @@
 # Zontax
 
-[![NPM version](https://img.shields.io/npm/v/zontax.svg)](https://www.npmjs.com/package/zontax)
-[![License](https://img.shields.io/npm/l/zontax.svg)](./LICENSE)
-
-Zontax is a powerful superset of the Zod schema language that allows you to embed arbitrary definition directly within your schema definitions. It provides a parser that transforms this augmented syntax into two separate, useful outputs from a single function call:
+Zontax is a powerful superset of the Zod schema language that allows you to embed arbitrary metadata directly within your schema definitions. It provides a parser that transforms this augmented syntax into two separate, useful outputs:
 
 1.  A **clean Zod schema string** for validation.
-2.  A **structured JSON object** containing all the extracted definition for any purpose, such as UI generation, documentation, or API behavior.
+2.  A **structured JSON `definition` object** containing all the extracted metadata, perfect for UI generation, documentation, or API behavior.
 
 This allows you to maintain a single source of truth for both data validation and any contextual information attached to your data structures.
 
 ## Key Features
 
-- **Unified API:** A single `parse()` method returns both the schema and definition, ensuring efficiency and a great developer experience.
-- **Declarative & Human-Readable:** Write schemas that look and feel like Zod, but with extra descriptive power for any domain.
-- **Fully Extensible:** Define your own custom chainable methods using a Zod schema. Add domain-specific definition for UI hints, documentation, analytics, API contracts, and more.
+- **Namespaces:** Register extensions under namespaces (`ui`, `doc`, etc.) to prevent name collisions and organize your schemas.
+- **Collaborative Schemas:** The namespace system allows teams and open-source projects to create and share reusable extension libraries.
+- **Intuitive Syntax:** Use a clean and visually distinct syntax (`ui$label(...)`) for applying namespaced extensions.
 - **Safe & Secure:** Parses your schema definition using an Abstract Syntax Tree (AST), with no reliance on `eval()` or other unsafe code execution.
-- **TypeScript First:** Written in TypeScript, with type definitions included.
+- **Flexible Modes:** Use `strict` mode for production and `loose` mode for rapid development.
+- **Helper Utilities:** Includes built-in static methods to easily query and transform the `definition` object.
 
 ## Installation
 
@@ -30,21 +28,17 @@ yarn add zontax
 
 ## How It Works
 
-The `ZontaxParser` takes a string of Zontax code and returns an object containing both the cleaned Zod schema string and the structured definition.
+The `ZontaxParser` takes a string of Zontax code and returns an object containing both the cleaned Zod schema string and the structured `definition`.
 
 **Given this Zontax string:**
 ```javascript
 const schemaString = `
   z.object({
-    name: z.string()
-      .min(1)
-      .label("Full Name")         // A UI hint
-      .internalDoc("Primary user identifier"), // An internal doc string
+    // A namespaced extension from a 'ui' schema
+    name: z.string().min(1).ui$label("Full Name"),
 
-    age: z.number()
-      .min(0)
-      .optional()
-      .label("Age")
+    // A global extension
+    id: z.string().uuid().analyticsId("user-id")
   })
 `;
 ```
@@ -52,145 +46,83 @@ const schemaString = `
 **A single call to `parser.parse(schemaString)` returns:**
 ```javascript
 {
-  schema: 'z.object({ name: z.string().min(1), age: z.number().min(0).optional() })',
-  definition: {
-    type: 'object',
-    fields: {
-      name: {
-        type: 'string',
-        validations: { min: 1 },
-        extensions: {
-          label: {
-            category: 'ui',
-            value: 'Full Name'
-          },
-          internalDoc: {
-            category: 'doc',
-            value: 'Primary user identifier'
+  "schema": "z.object({ name: z.string().min(1), id: z.string().uuid() })",
+  "definition": {
+    "type": "object",
+    "fields": {
+      "name": {
+        "type": "string",
+        "validations": { "min": 1 },
+        "namespaces": {
+          "ui": {
+            "label": { "category": "ui", "value": "Full Name" }
           }
         }
       },
-      age: {
-        type: 'number',
-        optional: true,
-        validations: { min: 0 },
-        extensions: {
-          label: {
-            category: 'ui',
-            value: 'Age'
-          }
+      "id": {
+        "type": "string",
+        "validations": { "uuid": true },
+        "extensions": {
+          "analyticsId": { "category": "tracking", "value": "user-id" }
         }
       }
     }
   }
 }
 ```
-The `schema` string is by design. It avoids the use of `eval()` and allows the clean code to be passed to a dedicated, safe parser (like `zod-subset-parser`) to create a live, usable Zod schema object.
 
 ## Usage & Customization
 
-### Registering Extensions
+### Registering Schemas and Namespaces
 
-All extensions must conform to the `ExtensionMethodSchema`:
-
-```typescript
-import { z } from 'zod';
-
-export const ExtensionMethodSchema = z.object({
-  name: z.string(),
-  allowedOn: z.array(z.string()), // e.g., ["string", "number"]
-  args: z.array(z.string()),      // e.g., ["string"]
-  category: z.string(),           // e.g., "ui", "doc", "analytics"
-  description: z.string().optional()
-});
-```
-
-### Example: Parsing a Schema
+The `ZontaxParser` constructor accepts an array of schema registrations.
 
 ```typescript
 import { ZontaxParser, Extension } from 'zontax';
-// In a real-world scenario, you would also import a safe schema parser
-// import { parseZodString } from 'zod-subset-parser';
 
-// 1. Define the extensions you want to support
-const myExtensions: Extension[] = [
-  { name: 'label', allowedOn: ['string', 'number'], args: ['string'], category: 'ui' },
-  { name: 'internalDoc', allowedOn: ['string', 'object'], args: ['string'], category: 'doc' }
+// Define a reusable schema for UI extensions
+const uiSchema: Extension[] = [
+  { name: 'label', allowedOn: ['string'], args: ['string'], category: 'ui' },
+  { name: 'placeholder', allowedOn: ['string'], args: ['string'], category: 'ui' }
 ];
 
-// 2. Create a parser instance
-const parser = new ZontaxParser(myExtensions);
+// Define a global schema for this project
+const trackingSchema: Extension[] = [
+  { name: 'analyticsId', allowedOn: ['string'], args: ['string'], category: 'tracking' }
+];
 
-// 3. Your Zontax schema string
-const schemaString = `
-  z.object({
-    name: z.string().min(1).label("Full Name").internalDoc("The user's full name"),
-    age: z.number().min(0).optional().label("Age")
-  })
-`;
-
-// 4. Parse the string to get the schema and definition
-const { schema, definition } = parser.parse(schemaString);
-
-// The `schema` is a clean Zod code string, ready for a safe parser
-// const liveSchema = parseZodString(schema);
-
-// The `definition` contains the structured data from your extensions
-console.log(JSON.stringify(definition, null, 2));
-
-// You can also filter the definition by category
-const { definition: uiOnlyMetadata } = parser.parse(schemaString, { categories: ['ui'] });
-console.log(JSON.stringify(uiOnlyMetadata, null, 2));
-```
-
-### Introspection
-
-You can inspect which extensions are registered on a parser instance at any time.
-
-```typescript
-const registered = parser.getRegisteredExtensions();
-console.log(registered.map(e => e.name)); // ['label', 'internalDoc']
+// Create a parser instance
+const parser = new ZontaxParser([
+  // Register uiSchema under the 'ui' namespace
+  { namespace: 'ui', extensions: uiSchema },
+  
+  // Register trackingSchema to the global namespace
+  trackingSchema 
+]);
 ```
 
 ### Modes
 
-The `ZontaxParser` can be configured to run in one of two modes, passed via the constructor:
+The parser can be configured with a `mode` option:
 
-#### `mode: 'strict'` (Default)
+- **`mode: 'strict'` (Default):** Throws an error for any unregistered method, whether global (`.unregistered()`) or namespaced (`.fake$unregistered()`).
+- **`mode: 'loose'`:** Captures any unregistered method and adds it to the `definition` object under the `extra` category.
 
-In the default `strict` mode, the parser will throw an error if it encounters a method that is not a known Zod method or a registered extension. This is ideal for production environments where you want to enforce a strict schema contract.
+### Helper Methods
 
-```typescript
-const parser = new ZontaxParser(myExtensions, { mode: 'strict' });
-const invalidInput = `z.string().unregistered()`;
-// Throws: Unrecognized method '.unregistered()'.
-expect(() => parser.parse(invalidInput)).toThrow();
-```
+Zontax includes static helper methods to make working with the `definition` object easier.
 
-#### `mode: 'loose'`
+#### `getDefinitionByNamespace(definition, namespace)`
 
-In `loose` mode, the parser will not throw an error for unregistered methods. Instead, it will automatically capture them and place them in the `extensions` object with a category of `extra`. This is useful for rapid development or for schemas where you don't need to formally define every possible piece of metadata.
+This method returns a new object containing only the fields that have extensions from the specified namespace.
 
 ```typescript
-const parser = new ZontaxParser(myExtensions, { mode: 'loose' });
-const looseInput = `z.string().author("John Doe").deprecated(true)`;
-const { definition } = parser.parse(looseInput);
+const { definition } = parser.parse(someSchema);
+const uiView = ZontaxParser.getDefinitionByNamespace(definition, 'ui');
 
-/*
-definition.extensions will be:
-{
-  "author": {
-    "category": "extra",
-    "value": "John Doe"
-  },
-  "deprecated": {
-    "category": "extra",
-    "value": true
-  }
-}
-*/
+// uiView will contain only the 'name' and 'age' fields,
+// and only their 'ui' extensions.
 ```
 
 ## License
-
 This project is licensed under the ISC License.
