@@ -51,15 +51,16 @@ const schemaString = `
 
 **You can get two outputs:**
 
-**1. A valid Zod schema string:**
+**1. A Zod Schema String:**
+The `parseZodSchema` function returns a clean, valid string of Zod code, with all custom Zontax methods removed.
 ```javascript
-z.object({
-  name: z.string().min(1),
-  age: z.number().min(0).optional()
-})
+const zodCodeString = parser.parseZodSchema(schemaString);
+//=> "z.object({name:z.string().min(1),age:z.number().min(0).optional()})"
 ```
+This string output is by design. It avoids the use of `eval()` and allows the clean code to be passed to a dedicated, safe parser (like `zod-subset-parser`) to create a live, usable Zod schema object.
 
-**2. A structured metadata object:**
+**2. A Structured Metadata Object:**
+The `extractMetadata` function returns a JSON object containing the metadata from your custom extensions.
 ```json
 {
   "type": "object",
@@ -104,6 +105,8 @@ export const ExtensionMethodSchema = z.object({
 
 ```typescript
 import { ZontaxParser, Extension } from 'zontax';
+// In a real-world scenario, you would also import the schema parser
+// import { parseZodString } from 'zod-subset-parser';
 
 // 1. Define the extensions you want to support
 const myExtensions: Extension[] = [
@@ -125,11 +128,15 @@ const schemaString = `
   })
 `;
 
-// 4. Parse it!
-const zodCode = parser.parseZodSchema(schemaString);
+// 4. Parse to get the code string and metadata
+const zodCodeString = parser.parseZodSchema(schemaString);
 const metadata = parser.extractMetadata(schemaString);
 
-console.log(zodCode);
+// 5. Create a live schema from the string using a safe parser
+// const liveSchema = parseZodString(zodCodeString);
+
+// Now you have both!
+// console.log(liveSchema.safeParse({ name: 'Jane' }));
 console.log(JSON.stringify(metadata, null, 2));
 ```
 
