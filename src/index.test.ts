@@ -45,64 +45,33 @@ describe('ZontaxParser', () => {
     });
   });
 
-  describe('parseZodSchema', () => {
-    it('should strip out registered superset methods', () => {
-      const input = `
-        z.object({
-          name: z.string().min(1).label("Full Name").widget("text"),
-          age: z.number().optional().label("Age")
-        });
-      `;
-      const expectedZodCode = `
-        z.object({
-          name: z.string().min(1),
-          age: z.number().optional()
-        })
-      `;
-      const result = parser.parseZodSchema(input);
-      expect(stripWhitespace(result)).toEqual(stripWhitespace(expectedZodCode));
-    });
-
-    it('should throw an error for unregistered methods', () => {
-      const input = `z.object({ name: z.string().unregistered() });`;
-      expect(() => parser.parseZodSchema(input)).toThrow("Unrecognized method '.unregistered()'. Please register it as an extension.");
-    });
-  });
-
-  describe('extractMetadata', () => {
+  describe('parse', () => {
     const input = `
       z.object({
-        name: z.string().label("Name").internalDoc("User's full name"),
-        age: z.number().min(0)
+        name: z.string().min(1).label("Full Name").internalDoc("User's full name"),
+        age: z.number().optional().label("Age")
       })
     `;
 
-    it('should extract all metadata by default', () => {
-      const result = parser.extractMetadata(input);
-      const nameField = result.fields.name;
-      expect(nameField.ui.label).toBe("Name");
-      expect(nameField.doc.internalDoc).toBe("User's full name");
+    it('should return both schema and full metadata by default', () => {
+        const { schema, metadata } = parser.parse(input);
+
+        const expectedSchema = `z.object({ name: z.string().min(1), age: z.number().optional() })`;
+        expect(stripWhitespace(schema)).toEqual(stripWhitespace(expectedSchema));
+
+        expect(metadata.fields.name.ui.label).toBe("Full Name");
+        expect(metadata.fields.name.doc.internalDoc).toBe("User's full name");
     });
 
-    it('should filter to include only a single category', () => {
-      const result = parser.extractMetadata(input, { categories: ['ui'] });
-      const nameField = result.fields.name;
-      expect(nameField.ui.label).toBe("Name");
-      expect(nameField.doc).toBeUndefined();
+    it('should filter metadata based on categories option', () => {
+        const { metadata } = parser.parse(input, { categories: ['ui'] });
+        expect(metadata.fields.name.ui.label).toBe("Full Name");
+        expect(metadata.fields.name.doc).toBeUndefined();
     });
 
-    it('should filter to include multiple categories', () => {
-        const result = parser.extractMetadata(input, { categories: ['ui', 'doc'] });
-        const nameField = result.fields.name;
-        expect(nameField.ui.label).toBe("Name");
-        expect(nameField.doc.internalDoc).toBe("User's full name");
-    });
-
-    it('should return no metadata if category is not in the include list', () => {
-        const result = parser.extractMetadata(input, { categories: ['analytics'] });
-        const nameField = result.fields.name;
-        expect(nameField.ui).toBeUndefined();
-        expect(nameField.doc).toBeUndefined();
+    it('should throw an error for unregistered methods', () => {
+      const invalidInput = `z.object({ name: z.string().unregistered() });`;
+      expect(() => parser.parse(invalidInput)).toThrow("Unrecognized method '.unregistered()'. Please register it as an extension.");
     });
   });
 });

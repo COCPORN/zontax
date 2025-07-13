@@ -1,8 +1,7 @@
 import * as acorn from 'acorn';
 import * as escodegen from 'escodegen';
-import { z, ZodType } from 'zod';
+import { z } from 'zod';
 
-// As per the PRD
 export const ExtensionMethodSchema = z.object({
   name: z.string(),
   allowedOn: z.array(z.string()),
@@ -13,44 +12,26 @@ export const ExtensionMethodSchema = z.object({
 
 export type Extension = z.infer<typeof ExtensionMethodSchema>;
 
-// Standard Zod methods that can be chained
 const KNOWN_ZOD_METHODS = [
   'string', 'number', 'boolean', 'date', 'object', 'array',
   'min', 'max', 'length', 'email', 'url', 'uuid', 'optional', 'nullable', 'default',
   'int', 'positive', 'negative', 'describe', 'enum', 'literal', 'tuple', 'union'
 ];
 
-// A simple AST visitor with replacement capability
-function visit(node: any, visitor: { [key: string]: (node: any, state?: any) => any }, state: any = {}) {
+function visit(node: any, visitor: { [key: string]: (node: any) => any }) {
     if (!node) return node;
 
     for (const key in node) {
         if (key === 'parent') continue;
         const prop = node[key];
         if (Array.isArray(prop)) {
-            const newProp = [];
-            for (const child of prop) {
-                if (child && typeof child.type === 'string') {
-                    const newChild = visit(child, visitor, state);
-                    if (newChild) {
-                        newProp.push(newChild);
-                    }
-                } else {
-                    newProp.push(child);
-                }
-            }
-            node[key] = newProp;
+            node[key] = prop.map(child => visit(child, visitor)).filter(Boolean);
         } else if (prop && typeof prop.type === 'string') {
-            node[key] = visit(prop, visitor, state);
+            node[key] = visit(prop, visitor);
         }
     }
 
-    let replacement = node;
-    if (visitor[node.type]) {
-        replacement = visitor[node.type](node, state);
-    }
-
-    return replacement;
+    return visitor[node.type] ? visitor[node.type](node) : node;
 }
 
 export class ZontaxParser {
@@ -63,7 +44,7 @@ export class ZontaxParser {
   }
 
   register(extension: Extension) {
-    ExtensionMethodSchema.parse(extension); // This will throw if the extension is invalid
+    ExtensionMethodSchema.parse(extension);
     this.extensions.set(extension.name, extension);
   }
 
@@ -71,31 +52,10 @@ export class ZontaxParser {
     return Array.from(this.extensions.values());
   }
 
-  parseZodSchema(source: string): string {
-    const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
-    const extensionNames = Array.from(this.extensions.keys());
-
-    const transformedAst = visit(ast, {
-      CallExpression: (node: any) => {
-        if (node.callee.type === 'MemberExpression' && node.callee.property.type === 'Identifier') {
-          const methodName = node.callee.property.name;
-          if (extensionNames.includes(methodName)) {
-            return node.callee.object; // Strip the extension method call
-          }
-          if (!KNOWN_ZOD_METHODS.includes(methodName) && !this.extensions.has(methodName)) {
-            throw new Error(`Unrecognized method '.${methodName}()'. Please register it as an extension.`);
-          }
-        }
-        return node;
-      }
-    });
-
-    return escodegen.generate(transformedAst.body[0].expression);
-  }
-
-  private parseNode(node: any, options?: { categories?: string[] }): any {
-    if (!node) return {};
-
+  private buildMetadata(node: any, options?: { categories?: string[] }): any {
+    if (node.type === 'ExpressionStatement') {
+        return this.buildMetadata(node.expression, options);
+    }
     if (node.type === 'CallExpression') {
         let data: any = {};
         let current = node;
@@ -103,7 +63,7 @@ export class ZontaxParser {
             const callee = current.callee;
             if (callee.type === 'MemberExpression') {
                 const methodName = callee.property.name;
-                const args = current.arguments.map((arg: any) => this.parseNode(arg, options));
+                const args = current.arguments.map((arg: any) => this.buildMetadata(arg, options));
                 const extension = this.extensions.get(methodName);
 
                 if (extension) {
@@ -130,37 +90,52 @@ export class ZontaxParser {
             current = callee.object;
         }
         if (current.type === 'CallExpression') {
-            const baseData = this.parseNode(current, options);
+            const baseData = this.buildMetadata(current, options);
             data = {...baseData, ...data};
         }
-
         return data;
     }
-
     if (node.type === 'ObjectExpression') {
         const fields: any = {};
         for (const prop of node.properties) {
-            fields[prop.key.name] = this.parseNode(prop.value, options);
+            fields[prop.key.name] = this.buildMetadata(prop.value, options);
         }
         return fields;
     }
-
-    if (node.type === 'Literal') {
-        return node.value;
-    }
+    if (node.type === 'Literal') return node.value;
     if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'z') {
         return { type: node.property.name, validations: {} };
     }
-
     return escodegen.generate(node);
   }
 
-  extractMetadata(source: string, options?: { categories?: string[] }): any {
+  parse(source: string, options?: { categories?: string[] }) {
     const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
-    const startStatement = ast.body[0];
-    if (startStatement.type !== 'ExpressionStatement') {
-        throw new Error('Expected the Zontax string to start with an ExpressionStatement.');
-    }
-    return this.parseNode(startStatement.expression, options);
+    const extensionNames = Array.from(this.extensions.keys());
+
+    // Build metadata from the original AST, passing the options
+    const metadata = this.buildMetadata(ast.body[0], options);
+
+    // Clone the AST for transformation to avoid side effects
+    const astForSchema = JSON.parse(JSON.stringify(ast));
+
+    const transformedAst = visit(astForSchema, {
+      CallExpression: (node: any) => {
+        if (node.callee.type === 'MemberExpression' && node.callee.property.type === 'Identifier') {
+          const methodName = node.callee.property.name;
+          if (extensionNames.includes(methodName)) {
+            return node.callee.object; // Strip the extension method call
+          }
+          if (!KNOWN_ZOD_METHODS.includes(methodName) && !this.extensions.has(methodName)) {
+            throw new Error(`Unrecognized method '.${methodName}()'. Please register it as an extension.`);
+          }
+        }
+        return node;
+      }
+    });
+
+    const schema = escodegen.generate(transformedAst.body[0].expression);
+
+    return { schema, metadata };
   }
 }
