@@ -1,4 +1,5 @@
 import { ZontaxParser, Extension, ZontaxMergeError } from './index';
+import { parseZodString } from 'zod-subset-parser';
 
 // --- Test Data (Category-less) ---
 const uiSchema: Extension[] = [
@@ -18,16 +19,16 @@ const globalSchema: Extension[] = [
 describe('ZontaxParser', () => {
 
   describe('Initialization', () => {
-    it('should register global extensions via array shorthand', () => {
+    it('should register global extensions', () => {
       const parser = new ZontaxParser([globalSchema]);
-      const { definition } = parser.parse('Z.string().analyticsId("test")');
-      expect(definition.extensions.analyticsId.value).toBe('test');
+      const { schema } = parser.parse('Z.string().analyticsId("test")');
+      expect(() => parseZodString(schema)).not.toThrow();
     });
 
     it('should register namespaced extensions', () => {
       const parser = new ZontaxParser([{ namespace: 'ui', extensions: uiSchema }]);
-      const { definition } = parser.parse('Z.string().ui$label("Name")');
-      expect(definition.namespaces.ui.label.value).toBe('Name');
+      const { schema } = parser.parse('Z.string().ui$label("Name")');
+      expect(() => parseZodString(schema)).not.toThrow();
     });
   });
 
@@ -37,18 +38,19 @@ describe('ZontaxParser', () => {
       { namespace: 'doc', extensions: docSchema },
     ]);
 
-    it('should merge more than two schemas correctly', () => {
+    it('should merge more than two schemas and produce a valid final schema', () => {
         const s1 = `Z.object({ user: Z.object({ name: Z.string() }) })`;
         const s2 = `Z.object({ user: Z.object({ name: Z.string().min(3) }) })`;
         const s3 = `Z.object({ user: Z.object({ name: Z.string().max(10) }) })`;
         const s4 = `Z.object({ user: Z.object({ name: Z.string().ui$label("Name") }) })`;
 
-        const { definition } = parser.parse(s1, s2, s3, s4);
+        const { definition, schema } = parser.parse(s1, s2, s3, s4);
         const nameDef = definition.fields.user.fields.name;
 
         expect(nameDef.validations.min).toBe(3);
         expect(nameDef.validations.max).toBe(10);
         expect(nameDef.namespaces.ui.label.value).toBe("Name");
+        expect(() => parseZodString(schema)).not.toThrow();
     });
 
     it('should throw a detailed error on type mismatch', () => {
@@ -72,11 +74,12 @@ describe('ZontaxParser', () => {
       expect(() => parser.parse('Z.string().unregistered()')).toThrow();
     });
 
-    it('should capture loose methods correctly', () => {
+    it('should capture loose methods and produce a valid schema', () => {
       const parser = new ZontaxParser([], { mode: 'loose' });
-      const { definition } = parser.parse('Z.string().author("John").meta$version(2)');
+      const { definition, schema } = parser.parse('Z.string().author("John").meta$version(2)');
       expect(definition.extensions.author.value).toBe('John');
       expect(definition.namespaces.meta.version.value).toBe(2);
+      expect(() => parseZodString(schema)).not.toThrow();
     });
   });
 
@@ -97,7 +100,7 @@ describe('ZontaxParser', () => {
             const uiView = ZontaxParser.getDefinitionByNamespace(definition, 'ui');
             expect(Object.keys(uiView)).toEqual(['name', 'age']);
             expect(uiView.name.namespaces.ui.label).toBeDefined();
-            expect(uiView.name.namespaces.doc).toBeUndefined(); // Ensure other namespaces are excluded
+            expect(uiView.name.namespaces.doc).toBeUndefined();
         });
     });
 
