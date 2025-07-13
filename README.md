@@ -114,11 +114,11 @@ const parser = new ZontaxParser([
 
 You can inspect the parser's configuration at any time.
 
-#### `getRegistrations()`
+#### `getExtensions()`
 Returns a map of all registered extensions, keyed by their namespace. Global extensions are stored under the `_global` key.
 
 ```typescript
-const registrations = parser.getRegistrations();
+const extensions = parser.getExtensions();
 // { _global: [...], ui: [...] }
 ```
 

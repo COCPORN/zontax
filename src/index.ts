@@ -254,7 +254,7 @@ export class ZontaxParser {
     return { schema, definition: mergedDefinition };
   }
 
-  public getRegistrations(): Record<string, Extension[]> {
+  public getExtensions(): Record<string, Extension[]> {
     const namespaces: Record<string, Extension[]> = {};
     for (const [name, extensionsMap] of this.namespacedExtensions.entries()) {
       namespaces[name] = Array.from(extensionsMap.values());
