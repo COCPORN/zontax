@@ -95,13 +95,23 @@ const { schema, definition } = parser.parse(baseSchema, uiSchema);
 
 ### Registering Schemas and Namespaces
 
-The `ZontaxParser` constructor accepts an array of schema registrations.
+The `ZontaxParser` constructor accepts an array of schema registrations. The `Extension` schema allows for powerful, self-documenting validation rules.
 
 ```typescript
 import { ZontaxParser, Extension } from 'zontax';
 
 const uiSchema: Extension[] = [
-  { name: 'label', allowedOn: ['string'], args: ['string'] },
+  { 
+    name: 'label', 
+    allowedOn: ['string'], 
+    args: ['string'],
+    // Restrict this extension to specific paths
+    allowedOnPath: [
+        'user.name', // Exact match
+        'user.profile.*', // Wildcard match for direct children
+        /^user\.address\.(street|city)$/ // RegExp for advanced matching
+    ]
+  },
 ];
 
 // Register uiSchema under the 'ui' namespace

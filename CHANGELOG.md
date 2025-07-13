@@ -5,10 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2025-07-13
+
+### Changed
+- Renamed `getRegistrations()` to `getExtensions()` for clarity.
+- Updated documentation for `allowedOnPath` and `getExtensions`.
+
 ## [0.10.0] - 2025-07-13
 
 ### Added
-- Added the `getRegistrations()` method for inspecting the parser's configuration.
+- Added the `getExtensions()` method for inspecting the parser's configuration.
 
 ## [0.9.0] - 2025-07-13
 
