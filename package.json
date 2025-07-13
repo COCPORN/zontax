@@ -1,6 +1,6 @@
 {
   "name": "zontax",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Zontax - Zod Superset Language and Parser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

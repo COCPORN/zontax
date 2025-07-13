@@ -22,12 +22,12 @@ export declare const ExtensionMethodSchema: z.ZodObject<{
     allowedOnPath?: (string | RegExp)[] | undefined;
 }>;
 export type Extension = z.infer<typeof ExtensionMethodSchema>;
-interface SchemaRegistrationObject {
+export interface SchemaRegistrationObject {
     namespace?: string;
     extensions: Extension[];
 }
-type SchemaRegistration = Extension[] | SchemaRegistrationObject;
-interface ZontaxParserOptions {
+export type SchemaRegistration = Extension[] | SchemaRegistrationObject;
+export interface ZontaxParserOptions {
     mode?: 'strict' | 'loose';
 }
 export declare class ZontaxParser {
@@ -48,4 +48,3 @@ export declare class ZontaxParser {
     static getDefinitionByNamespace(definition: any, namespace: string): Record<string, any>;
     static generateSchemaFromDefinition(definition: any, namespace?: string): Extension[];
 }
-export {};

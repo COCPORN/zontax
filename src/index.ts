@@ -19,12 +19,12 @@ export const ExtensionMethodSchema = z.object({
 
 export type Extension = z.infer<typeof ExtensionMethodSchema>;
 
-interface SchemaRegistrationObject {
+export interface SchemaRegistrationObject {
   namespace?: string;
   extensions: Extension[];
 }
-type SchemaRegistration = Extension[] | SchemaRegistrationObject;
-interface ZontaxParserOptions {
+export type SchemaRegistration = Extension[] | SchemaRegistrationObject;
+export interface ZontaxParserOptions {
   mode?: 'strict' | 'loose';
 }
 
