@@ -7,7 +7,7 @@ export const ExtensionMethodSchema = z.object({
   name: z.string(),
   allowedOn: z.array(z.string()),
   args: z.array(z.string()),
-  outputGroup: z.string(),
+  category: z.string(),
   description: z.string().optional()
 });
 
@@ -67,6 +67,10 @@ export class ZontaxParser {
     this.extensions.set(extension.name, extension);
   }
 
+  getRegisteredExtensions(): Extension[] {
+    return Array.from(this.extensions.values());
+  }
+
   parseZodSchema(source: string): string {
     const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
     const extensionNames = Array.from(this.extensions.keys());
@@ -89,7 +93,7 @@ export class ZontaxParser {
     return escodegen.generate(transformedAst.body[0].expression);
   }
 
-  private parseNode(node: any, options?: { include?: string[] }): any {
+  private parseNode(node: any, options?: { categories?: string[] }): any {
     if (!node) return {};
 
     if (node.type === 'CallExpression') {
@@ -103,10 +107,10 @@ export class ZontaxParser {
                 const extension = this.extensions.get(methodName);
 
                 if (extension) {
-                    if (!options?.include || options.include.includes(extension.outputGroup)) {
-                        const group = extension.outputGroup;
-                        if (!data[group]) data[group] = {};
-                        data[group][methodName] = args.length === 1 ? args[0] : args;
+                    if (!options?.categories || options.categories.includes(extension.category)) {
+                        const category = extension.category;
+                        if (!data[category]) data[category] = {};
+                        data[category][methodName] = args.length === 1 ? args[0] : args;
                     }
                 } else if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
                     if (!data.validations) data.validations = {};
@@ -151,7 +155,7 @@ export class ZontaxParser {
     return escodegen.generate(node);
   }
 
-  extractMetadata(source: string, options?: { include?: string[] }): any {
+  extractMetadata(source: string, options?: { categories?: string[] }): any {
     const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
     const startStatement = ast.body[0];
     if (startStatement.type !== 'ExpressionStatement') {

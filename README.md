@@ -83,7 +83,7 @@ The `extractMetadata` function returns a JSON object containing the metadata fro
 
 ## Usage & Customization
 
-The power of Zontax comes from its configurable parser. You define what custom methods are allowed and how their metadata should be grouped.
+The power of Zontax comes from its configurable parser. You define what custom methods are allowed and how their metadata should be grouped. The parser instance then provides methods to extract the schema and metadata, and to inspect which extensions have been registered.
 
 ### Registering Extensions
 
@@ -96,7 +96,7 @@ export const ExtensionMethodSchema = z.object({
   name: z.string(),
   allowedOn: z.array(z.string()), // e.g., ["string", "number"]
   args: z.array(z.string()),      // e.g., ["string"]
-  outputGroup: z.string(),        // e.g., "ui", "doc", "analytics"
+  category: z.string(),           // e.g., "ui", "doc", "analytics"
   description: z.string().optional()
 });
 ```
@@ -111,10 +111,10 @@ import { ZontaxParser, Extension } from 'zontax';
 // 1. Define the extensions you want to support
 const myExtensions: Extension[] = [
   // UI-related extensions
-  { name: 'label', allowedOn: ['string', 'number'], args: ['string'], outputGroup: 'ui' },
-  { name: 'widget', allowedOn: ['string', 'number'], args: ['string'], outputGroup: 'ui' },
+  { name: 'label', allowedOn: ['string', 'number'], args: ['string'], category: 'ui' },
+  { name: 'widget', allowedOn: ['string', 'number'], args: ['string'], category: 'ui' },
   // Documentation-related extension
-  { name: 'internalDoc', allowedOn: ['string', 'number', 'object'], args: ['string'], outputGroup: 'doc' }
+  { name: 'internalDoc', allowedOn: ['string', 'number', 'object'], args: ['string'], category: 'doc' }
 ];
 
 // 2. Create a parser instance
@@ -130,14 +130,16 @@ const schemaString = `
 
 // 4. Parse to get the code string and metadata
 const zodCodeString = parser.parseZodSchema(schemaString);
-const metadata = parser.extractMetadata(schemaString);
+
+// You can filter metadata by category
+const uiMetadata = parser.extractMetadata(schemaString, { categories: ['ui'] });
 
 // 5. Create a live schema from the string using a safe parser
 // const liveSchema = parseZodString(zodCodeString);
 
-// Now you have both!
-// console.log(liveSchema.safeParse({ name: 'Jane' }));
-console.log(JSON.stringify(metadata, null, 2));
+// You can also inspect the registered extensions
+const registered = parser.getRegisteredExtensions();
+console.log(registered.map(e => e.name)); // ['label', 'widget', 'internalDoc']
 ```
 
 ## License

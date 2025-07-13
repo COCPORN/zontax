@@ -4,9 +4,9 @@ import { ZontaxParser, Extension } from './index';
 const stripWhitespace = (code: string) => code.replace(/\s/g, '');
 
 const testExtensions: Extension[] = [
-  { name: 'label', allowedOn: ['string', 'number'], args: ['string'], outputGroup: 'ui' },
-  { name: 'widget', allowedOn: ['string', 'number'], args: ['string'], outputGroup: 'ui' },
-  { name: 'internalDoc', allowedOn: ['string'], args: ['string'], outputGroup: 'doc' },
+  { name: 'label', allowedOn: ['string', 'number'], args: ['string'], category: 'ui' },
+  { name: 'widget', allowedOn: ['string', 'number'], args: ['string'], category: 'ui' },
+  { name: 'internalDoc', allowedOn: ['string'], args: ['string'], category: 'doc' },
 ];
 
 describe('ZontaxParser', () => {
@@ -22,7 +22,7 @@ describe('ZontaxParser', () => {
         name: 'tooltip',
         allowedOn: ['string'],
         args: ['string'],
-        outputGroup: 'ui',
+        category: 'ui',
         description: 'A tooltip for a field'
       };
       parser.register(newExtension);
@@ -33,9 +33,15 @@ describe('ZontaxParser', () => {
       const invalidExtension: any = {
         name: 'invalid',
         args: ['string'],
-        outputGroup: 'ui'
+        category: 'ui'
       };
       expect(() => parser.register(invalidExtension)).toThrow();
+    });
+
+    it('should expose registered extensions', () => {
+        const extensions = parser.getRegisteredExtensions();
+        expect(extensions).toHaveLength(3);
+        expect(extensions.map(e => e.name)).toEqual(['label', 'widget', 'internalDoc']);
     });
   });
 
@@ -78,22 +84,22 @@ describe('ZontaxParser', () => {
       expect(nameField.doc.internalDoc).toBe("User's full name");
     });
 
-    it('should filter to include only a single outputGroup', () => {
-      const result = parser.extractMetadata(input, { include: ['ui'] });
+    it('should filter to include only a single category', () => {
+      const result = parser.extractMetadata(input, { categories: ['ui'] });
       const nameField = result.fields.name;
       expect(nameField.ui.label).toBe("Name");
       expect(nameField.doc).toBeUndefined();
     });
 
-    it('should filter to include multiple outputGroups', () => {
-        const result = parser.extractMetadata(input, { include: ['ui', 'doc'] });
+    it('should filter to include multiple categories', () => {
+        const result = parser.extractMetadata(input, { categories: ['ui', 'doc'] });
         const nameField = result.fields.name;
         expect(nameField.ui.label).toBe("Name");
         expect(nameField.doc.internalDoc).toBe("User's full name");
     });
 
-    it('should return no metadata if group is not in the include list', () => {
-        const result = parser.extractMetadata(input, { include: ['analytics'] });
+    it('should return no metadata if category is not in the include list', () => {
+        const result = parser.extractMetadata(input, { categories: ['analytics'] });
         const nameField = result.fields.name;
         expect(nameField.ui).toBeUndefined();
         expect(nameField.doc).toBeUndefined();
