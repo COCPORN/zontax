@@ -36,8 +36,10 @@ function visit(node: any, visitor: { [key: string]: (node: any) => any }) {
 
 export class ZontaxParser {
   private extensions = new Map<string, Extension>();
+  private mode: 'strict' | 'loose';
 
-  constructor(initialExtensions: Extension[] = []) {
+  constructor(initialExtensions: Extension[] = [], options: { mode?: 'strict' | 'loose' } = {}) {
+    this.mode = options.mode || 'strict';
     for (const ext of initialExtensions) {
       this.register(ext);
     }
@@ -72,19 +74,26 @@ export class ZontaxParser {
                         if (!data[category]) data[category] = {};
                         data[category][methodName] = args.length === 1 ? args[0] : args;
                     }
-                } else if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
-                    if (!data.validations) data.validations = {};
-                    data.validations[methodName] = args.length > 0 ? args[0] : true;
-                } else if (['string', 'number', 'boolean', 'date'].includes(methodName)) {
-                    data.type = methodName;
-                } else if (methodName === 'optional') {
-                    data.optional = true;
-                } else if (methodName === 'object') {
-                    data.type = 'object';
-                    data.fields = args[0];
-                } else if (methodName === 'array') {
-                    data.type = 'array';
-                    data.of = args[0];
+                } else if (KNOWN_ZOD_METHODS.includes(methodName)) {
+                    if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
+                        if (!data.validations) data.validations = {};
+                        data.validations[methodName] = args.length > 0 ? args[0] : true;
+                    } else if (['string', 'number', 'boolean', 'date'].includes(methodName)) {
+                        data.type = methodName;
+                    } else if (methodName === 'optional') {
+                        data.optional = true;
+                    } else if (methodName === 'object') {
+                        data.type = 'object';
+                        data.fields = args[0];
+                    } else if (methodName === 'array') {
+                        data.type = 'array';
+                        data.of = args[0];
+                    }
+                } else if (this.mode === 'loose') {
+                    if (!options?.categories || options.categories.includes('extra')) {
+                        if (!data.extra) data.extra = {};
+                        data.extra[methodName] = args.length === 1 ? args[0] : args;
+                    }
                 }
             }
             current = callee.object;
@@ -123,11 +132,14 @@ export class ZontaxParser {
       CallExpression: (node: any) => {
         if (node.callee.type === 'MemberExpression' && node.callee.property.type === 'Identifier') {
           const methodName = node.callee.property.name;
-          if (extensionNames.includes(methodName)) {
+          if (this.extensions.has(methodName)) {
             return node.callee.object; // Strip the extension method call
           }
-          if (!KNOWN_ZOD_METHODS.includes(methodName) && !this.extensions.has(methodName)) {
-            throw new Error(`Unrecognized method '.${methodName}()'. Please register it as an extension.`);
+          if (!KNOWN_ZOD_METHODS.includes(methodName)) {
+            if (this.mode === 'strict') {
+              throw new Error(`Unrecognized method '.${methodName}()'. Please register it as an extension or use loose mode.`);
+            }
+            return node.callee.object; // Strip the loose method call
           }
         }
         return node;
