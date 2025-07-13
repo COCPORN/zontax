@@ -16,7 +16,8 @@ export type Extension = z.infer<typeof ExtensionMethodSchema>;
 // Standard Zod methods that can be chained
 const KNOWN_ZOD_METHODS = [
   'string', 'number', 'boolean', 'date', 'object', 'array',
-  'min', 'max', 'length', 'email', 'url', 'uuid', 'optional', 'nullable', 'default'
+  'min', 'max', 'length', 'email', 'url', 'uuid', 'optional', 'nullable', 'default',
+  'int', 'positive', 'negative', 'describe', 'enum', 'literal', 'tuple', 'union'
 ];
 
 // A simple AST visitor with replacement capability
@@ -88,47 +89,77 @@ export class ZontaxParser {
     return escodegen.generate(transformedAst.body[0].expression);
   }
 
-  extractMetadata(source: string): any {
-    const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
-    const metadata: any = { type: 'object', fields: {} };
+  private parseNode(node: any): any {
+    if (!node) return {};
 
-    visit(ast, {
-      ObjectExpression: (node: any) => {
-        for (const prop of node.properties) {
-          const fieldName = prop.key.name;
-          const fieldData: any = { validations: {}, ui: {} }; // Default groups
-
-          let current = prop.value;
-          while (current && current.type === 'CallExpression') {
+    if (node.type === 'CallExpression') {
+        let data: any = {};
+        let current = node;
+        while (current && current.type === 'CallExpression') {
             const callee = current.callee;
             if (callee.type === 'MemberExpression') {
-              const methodName = callee.property.name;
-              const args = current.arguments.map((arg: any) => arg.value);
-              const extension = this.extensions.get(methodName);
+                const methodName = callee.property.name;
+                const args = current.arguments.map((arg: any) => this.parseNode(arg));
+                const extension = this.extensions.get(methodName);
 
-              if (extension) {
-                const group = extension.outputGroup;
-                if (!fieldData[group]) {
-                  fieldData[group] = {};
-                }
-                fieldData[group][methodName] = args.length === 1 ? args[0] : args;
-              } else if (KNOWN_ZOD_METHODS.includes(methodName)) {
-                 if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
-                    fieldData.validations[methodName] = args[0];
+                if (extension) {
+                    const group = extension.outputGroup;
+                    if (!data[group]) data[group] = {};
+                    data[group][methodName] = args.length === 1 ? args[0] : args;
+                } else if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
+                    if (!data.validations) data.validations = {};
+                    data.validations[methodName] = args.length > 0 ? args[0] : true;
                 } else if (['string', 'number', 'boolean', 'date'].includes(methodName)) {
-                    fieldData.type = methodName;
+                    data.type = methodName;
                 } else if (methodName === 'optional') {
-                    fieldData.optional = true;
+                    data.optional = true;
+                } else if (methodName === 'object') {
+                    data.type = 'object';
+                    data.fields = args[0];
+                } else if (methodName === 'array') {
+                    data.type = 'array';
+                    data.of = args[0];
                 }
-              }
             }
             current = callee.object;
-          }
-          metadata.fields[fieldName] = fieldData;
         }
-      }
-    });
+        // After the loop, if the base type hasn't been set (e.g. from z.string()),
+        // merge it from the result of parsing the base object (e.g. z.string())
+        if (current.type === 'CallExpression') {
+            const baseData = this.parseNode(current);
+            data = {...baseData, ...data};
+        }
 
-    return metadata;
+        return data;
+    }
+
+    if (node.type === 'ObjectExpression') {
+        const fields: any = {};
+        for (const prop of node.properties) {
+            fields[prop.key.name] = this.parseNode(prop.value);
+        }
+        return fields;
+    }
+
+    if (node.type === 'Literal') {
+        return node.value;
+    }
+
+    // Fallback for things like z.string() which is a CallExpression on z
+    if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'z') {
+        return { type: node.property.name, validations: {} };
+    }
+
+
+    return escodegen.generate(node);
+  }
+
+  extractMetadata(source: string): any {
+    const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
+    const startStatement = ast.body[0];
+    if (startStatement.type !== 'ExpressionStatement') {
+        throw new Error('Expected the Zontax string to start with an ExpressionStatement.');
+    }
+    return this.parseNode(startStatement.expression);
   }
 }

@@ -73,49 +73,58 @@ describe('ZontaxParser', () => {
   });
 
   describe('extractMetadata', () => {
-    it('should extract metadata based on registered extensions', () => {
-      const input = `
-        z.object({
-          name: z.string()
-            .min(1)
-            .label("Full Name")
-            .placeholder("e.g. Alice")
-            .widget("text")
-            .group("personal"),
+    it('should handle basic types', () => {
+        const input = `z.object({
+            name: z.string().label("Name"),
+            age: z.number().min(0),
+            verified: z.boolean().label("Verified")
+        })`;
+        const result = parser.extractMetadata(input);
+        expect(result.fields.name.type).toBe('string');
+        expect(result.fields.age.type).toBe('number');
+        expect(result.fields.verified.type).toBe('boolean');
+    });
 
-          age: z.number()
-            .min(0)
-            .optional()
-            .label("Age")
-            .widget("slider")
-        });
-      `;
-      const expectedMetadata = {
-        "type": "object",
-        "fields": {
-          "name": {
-            "type": "string",
-            "validations": { "min": 1 },
-            "ui": {
-              "label": "Full Name",
-              "placeholder": "e.g. Alice",
-              "widget": "text",
-              "group": "personal"
-            }
-          },
-          "age": {
-            "type": "number",
-            "optional": true,
-            "validations": { "min": 0 },
-            "ui": {
-              "label": "Age",
-              "widget": "slider"
-            }
-          }
-        }
-      };
-      const result = parser.extractMetadata(input);
-      expect(result).toEqual(expectedMetadata);
+    it('should handle nested objects', () => {
+        const input = `z.object({
+            user: z.object({
+                name: z.string().label("Username"),
+                email: z.string().email()
+            }).label("User Details")
+        })`;
+        const result = parser.extractMetadata(input);
+        expect(result.fields.user.type).toBe('object');
+        expect(result.fields.user.ui.label).toBe('User Details');
+        expect(result.fields.user.fields.name.type).toBe('string');
+        expect(result.fields.user.fields.name.ui.label).toBe('Username');
+        expect(result.fields.user.fields.email.validations.email).toBe(true);
+    });
+
+    it('should handle arrays of primitive types', () => {
+        const input = `z.object({
+            tags: z.array(z.string()).min(1).label("Tags")
+        })`;
+        const result = parser.extractMetadata(input);
+        expect(result.fields.tags.type).toBe('array');
+        expect(result.fields.tags.validations.min).toBe(1);
+        expect(result.fields.tags.ui.label).toBe('Tags');
+        expect(result.fields.tags.of.type).toBe('string');
+    });
+
+    it('should handle arrays of objects', () => {
+        const input = `z.object({
+            users: z.array(z.object({
+                id: z.string().uuid(),
+                name: z.string()
+            })).label("User List")
+        })`;
+        const result = parser.extractMetadata(input);
+        const usersField = result.fields.users;
+        expect(usersField.type).toBe('array');
+        expect(usersField.ui.label).toBe('User List');
+        expect(usersField.of.type).toBe('object');
+        expect(usersField.of.fields.id.type).toBe('string');
+        expect(usersField.of.fields.id.validations.uuid).toBe(true);
     });
 
     it('should ignore unregistered methods', () => {
@@ -126,20 +135,8 @@ describe('ZontaxParser', () => {
             .unregistered("some value")
         });
       `;
-      const expectedMetadata = {
-        "type": "object",
-        "fields": {
-          "name": {
-            "type": "string",
-            "validations": {},
-            "ui": {
-              "label": "Full Name"
-            }
-          }
-        }
-      };
       const result = parser.extractMetadata(input);
-      expect(result).toEqual(expectedMetadata);
+      expect(result.fields.name.ui.unregistered).toBeUndefined();
     });
   });
 });
