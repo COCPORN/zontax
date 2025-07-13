@@ -1,96 +1,135 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const index_1 = require("./index");
-// Helper to remove whitespace for consistent comparison
-const stripWhitespace = (code) => code.replace(/\s/g, '');
-const testExtensions = [
-    { name: 'label', allowedOn: ['string', 'number'], args: ['string'], category: 'ui' },
-    { name: 'widget', allowedOn: ['string', 'number'], args: ['string'], category: 'ui' },
-    { name: 'internalDoc', allowedOn: ['string'], args: ['string'], category: 'doc' },
+const zod_subset_parser_1 = require("zod-subset-parser");
+// --- Test Data (Category-less) ---
+const uiSchema = [
+    { name: 'label', allowedOn: ['string'], args: ['string'] },
+    { name: 'placeholder', allowedOn: ['string'], args: ['string'] },
+];
+const docSchema = [
+    { name: 'internalDoc', allowedOn: ['string', 'object'], args: ['string'] },
+];
+const globalSchema = [
+    { name: 'analyticsId', allowedOn: ['string'], args: ['string'] },
 ];
 describe('ZontaxParser', () => {
-    let parser;
-    beforeEach(() => {
-        parser = new index_1.ZontaxParser(testExtensions);
-    });
-    describe('Registration', () => {
-        it('should allow registering a valid extension', () => {
-            const newExtension = {
-                name: 'tooltip',
-                allowedOn: ['string'],
-                args: ['string'],
-                category: 'ui',
-                description: 'A tooltip for a field'
-            };
-            parser.register(newExtension);
-            // No error means success
+    describe('Initialization', () => {
+        it('should register global extensions', () => {
+            const parser = new index_1.ZontaxParser([globalSchema]);
+            const { schema } = parser.parse('Z.string().analyticsId("test")');
+            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
         });
-        it('should throw an error when registering an invalid extension', () => {
-            const invalidExtension = {
-                name: 'invalid',
-                args: ['string'],
-                category: 'ui'
-            };
-            expect(() => parser.register(invalidExtension)).toThrow();
-        });
-        it('should expose registered extensions', () => {
-            const extensions = parser.getRegisteredExtensions();
-            expect(extensions).toHaveLength(3);
-            expect(extensions.map(e => e.name)).toEqual(['label', 'widget', 'internalDoc']);
+        it('should register namespaced extensions', () => {
+            const parser = new index_1.ZontaxParser([{ namespace: 'ui', extensions: uiSchema }]);
+            const { schema } = parser.parse('Z.string().ui$label("Name")');
+            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
         });
     });
-    describe('parseZodSchema', () => {
-        it('should strip out registered superset methods', () => {
-            const input = `
-        z.object({
-          name: z.string().min(1).label("Full Name").widget("text"),
-          age: z.number().optional().label("Age")
+    describe('Composition (Multi-Schema Parsing)', () => {
+        const parser = new index_1.ZontaxParser([
+            { namespace: 'ui', extensions: uiSchema },
+            { namespace: 'doc', extensions: docSchema },
+        ]);
+        it('should merge more than two schemas and produce a valid final schema', () => {
+            const s1 = `Z.object({ user: Z.object({ name: Z.string() }) })`;
+            const s2 = `Z.object({ user: Z.object({ name: Z.string().min(3) }) })`;
+            const s3 = `Z.object({ user: Z.object({ name: Z.string().max(10) }) })`;
+            const s4 = `Z.object({ user: Z.object({ name: Z.string().ui$label("Name") }) })`;
+            const { definition, schema } = parser.parse(s1, s2, s3, s4);
+            const nameDef = definition.fields.user.fields.name;
+            expect(nameDef.validations.min).toBe(3);
+            expect(nameDef.validations.max).toBe(10);
+            expect(nameDef.namespaces.ui.label.value).toBe("Name");
+            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
         });
-      `;
-            const expectedZodCode = `
-        z.object({
-          name: z.string().min(1),
-          age: z.number().optional()
+        it('should throw a detailed error on type mismatch', () => {
+            const s1 = `Z.object({ user: Z.object({ name: Z.string() }) })`;
+            const s2 = `Z.object({ user: Z.object({ name: Z.number() }) })`;
+            const expectedError = "Type mismatch at schema index 1 for field 'user.name': Cannot merge type 'number' into 'string'.";
+            expect(() => parser.parse(s1, s2)).toThrow(new index_1.ZontaxMergeError(expectedError));
+        });
+        it('should throw a detailed error on validation conflict', () => {
+            const s1 = `Z.object({ name: Z.string().min(3) })`;
+            const s2 = `Z.object({ name: Z.string().min(4) })`;
+            const expectedError = "Validation conflict at schema index 1 for field 'name': Mismatch for validation 'min'.";
+            expect(() => parser.parse(s1, s2)).toThrow(new index_1.ZontaxMergeError(expectedError));
+        });
+    });
+    describe('Modes (Strict vs. Loose)', () => {
+        it('should throw in strict mode for unregistered methods', () => {
+            const parser = new index_1.ZontaxParser([], { mode: 'strict' });
+            expect(() => parser.parse('Z.string().unregistered()')).toThrow();
+        });
+        it('should capture loose methods and produce a valid schema', () => {
+            const parser = new index_1.ZontaxParser([], { mode: 'loose' });
+            const { definition, schema } = parser.parse('Z.string().author("John").meta$version(2)');
+            expect(definition.extensions.author.value).toBe('John');
+            expect(definition.namespaces.meta.version.value).toBe(2);
+            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
+        });
+    });
+    describe('Static Helpers', () => {
+        const parser = new index_1.ZontaxParser([
+            { namespace: 'ui', extensions: uiSchema },
+            { namespace: 'doc', extensions: docSchema },
+        ]);
+        const { definition } = parser.parse(`
+        Z.object({
+            name: Z.string().ui$label("Name").doc$internalDoc("Doc"),
+            age: Z.number().ui$placeholder("Age")
         })
-      `;
-            const result = parser.parseZodSchema(input);
-            expect(stripWhitespace(result)).toEqual(stripWhitespace(expectedZodCode));
+    `);
+        describe('getDefinitionByNamespace', () => {
+            it('should return a map of fields filtered by a single namespace', () => {
+                const uiView = index_1.ZontaxParser.getDefinitionByNamespace(definition, 'ui');
+                expect(Object.keys(uiView)).toEqual(['name', 'age']);
+                expect(uiView.name.namespaces.ui.label).toBeDefined();
+                expect(uiView.name.namespaces.doc).toBeUndefined(); // Ensure other namespaces are excluded
+            });
         });
-        it('should throw an error for unregistered methods', () => {
-            const input = `z.object({ name: z.string().unregistered() });`;
-            expect(() => parser.parseZodSchema(input)).toThrow("Unrecognized method '.unregistered()'. Please register it as an extension.");
+        describe('generateSchemaFromDefinition', () => {
+            const looseParser = new index_1.ZontaxParser([], { mode: 'loose' });
+            const looseDef = looseParser.parse(`Z.object({ name: Z.string().ui$label("Name") })`).definition;
+            it('should generate a schema for a specific namespace', () => {
+                const generated = index_1.ZontaxParser.generateSchemaFromDefinition(looseDef, 'ui');
+                expect(generated).toHaveLength(1);
+                expect(generated[0].name).toBe('label');
+            });
         });
     });
-    describe('extractMetadata', () => {
-        const input = `
-      z.object({
-        name: z.string().label("Name").internalDoc("User's full name"),
-        age: z.number().min(0)
-      })
-    `;
-        it('should extract all metadata by default', () => {
-            const result = parser.extractMetadata(input);
-            const nameField = result.fields.name;
-            expect(nameField.ui.label).toBe("Name");
-            expect(nameField.doc.internalDoc).toBe("User's full name");
+    describe('allowedOnPath Validation', () => {
+        const pathSchema = [
+            {
+                name: 'restricted',
+                allowedOn: ['string'],
+                args: [],
+                allowedOnPath: ['user.name', 'user.profile.*', /^user\.address\.(street|city)$/]
+            }
+        ];
+        const parser = new index_1.ZontaxParser([{ namespace: 'test', extensions: pathSchema }]);
+        it('should allow extension on an exact path match', () => {
+            const schema = `Z.object({ user: Z.object({ name: Z.string().test$restricted() }) })`;
+            expect(() => parser.parse(schema)).not.toThrow();
         });
-        it('should filter to include only a single category', () => {
-            const result = parser.extractMetadata(input, { categories: ['ui'] });
-            const nameField = result.fields.name;
-            expect(nameField.ui.label).toBe("Name");
-            expect(nameField.doc).toBeUndefined();
+        it('should allow extension on a wildcard path match', () => {
+            const schema = `Z.object({ user: Z.object({ profile: Z.object({ bio: Z.string().test$restricted() }) }) })`;
+            expect(() => parser.parse(schema)).not.toThrow();
         });
-        it('should filter to include multiple categories', () => {
-            const result = parser.extractMetadata(input, { categories: ['ui', 'doc'] });
-            const nameField = result.fields.name;
-            expect(nameField.ui.label).toBe("Name");
-            expect(nameField.doc.internalDoc).toBe("User's full name");
+        it('should allow extension on a regex path match', () => {
+            const schema1 = `Z.object({ user: Z.object({ address: Z.object({ street: Z.string().test$restricted() }) }) })`;
+            const schema2 = `Z.object({ user: Z.object({ address: Z.object({ city: Z.string().test$restricted() }) }) })`;
+            expect(() => parser.parse(schema1)).not.toThrow();
+            expect(() => parser.parse(schema2)).not.toThrow();
         });
-        it('should return no metadata if category is not in the include list', () => {
-            const result = parser.extractMetadata(input, { categories: ['analytics'] });
-            const nameField = result.fields.name;
-            expect(nameField.ui).toBeUndefined();
-            expect(nameField.doc).toBeUndefined();
+        it('should throw an error for a disallowed path', () => {
+            const schema = `Z.object({ user: Z.object({ email: Z.string().test$restricted() }) })`;
+            expect(() => parser.parse(schema)).toThrow(index_1.ZontaxMergeError);
+            expect(() => parser.parse(schema)).toThrow("Extension 'test$restricted' is not allowed on path 'user.email'.");
+        });
+        it('should throw an error for a disallowed regex path', () => {
+            const schema = `Z.object({ user: Z.object({ address: Z.object({ country: Z.string().test$restricted() }) }) })`;
+            expect(() => parser.parse(schema)).toThrow("Extension 'test$restricted' is not allowed on path 'user.address.country'.");
         });
     });
 });

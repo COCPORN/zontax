@@ -13,7 +13,8 @@ export const ExtensionMethodSchema = z.object({
   name: z.string(),
   allowedOn: z.array(z.string()),
   args: z.array(z.string()),
-  description: z.string().optional()
+  description: z.string().optional(),
+  allowedOnPath: z.array(z.union([z.string(), z.instanceof(RegExp)])).optional()
 });
 
 export type Extension = z.infer<typeof ExtensionMethodSchema>;
@@ -32,20 +33,6 @@ const KNOWN_ZOD_METHODS = [
   'min', 'max', 'length', 'email', 'url', 'uuid', 'optional', 'nullable', 'default',
   'int', 'positive', 'negative', 'describe', 'enum', 'literal', 'tuple', 'union'
 ];
-
-function visit(node: any, visitor: { [key: string]: (node: any) => any }) {
-    if (!node) return node;
-    for (const key in node) {
-        if (key === 'parent') continue;
-        const prop = node[key];
-        if (Array.isArray(prop)) {
-            node[key] = prop.map(child => visit(child, visitor)).filter(Boolean);
-        } else if (prop && typeof prop.type === 'string') {
-            node[key] = visit(prop, visitor);
-        }
-    }
-    return visitor[node.type] ? visitor[node.type](node) : node;
-}
 
 export class ZontaxParser {
   private globalExtensions = new Map<string, Extension>();
@@ -85,9 +72,9 @@ export class ZontaxParser {
     }
   }
 
-  private buildDefinition(node: any): any {
+  private buildDefinition(node: any, path: string[] = []): any {
     if (node.type === 'ExpressionStatement') {
-      return this.buildDefinition(node.expression);
+      return this.buildDefinition(node.expression, path);
     }
     if (node.type === 'CallExpression') {
         let data: any = {};
@@ -96,16 +83,34 @@ export class ZontaxParser {
             const callee = current.callee;
             if (callee.type === 'MemberExpression') {
                 const methodName = callee.property.name;
-                const args = current.arguments.map((arg: any) => this.buildDefinition(arg));
+                const args = current.arguments.map((arg: any) => this.buildDefinition(arg, path));
                 const [namespace, extName] = methodName.includes('$') ? methodName.split('$') : [null, methodName];
 
-                const isRegistered = namespace
-                    ? this.namespacedExtensions.get(namespace)?.has(extName)
-                    : this.globalExtensions.has(extName);
+                const extension = namespace
+                    ? this.namespacedExtensions.get(namespace)?.get(extName)
+                    : this.globalExtensions.get(extName);
 
-                if (isRegistered) {
-                    if (!data.namespaces) data.namespaces = {};
+                if (extension) {
+                    if (extension.allowedOnPath) {
+                        const currentPath = path.join('.');
+                        const isAllowed = extension.allowedOnPath.some(pattern => {
+                            if (typeof pattern === 'string') {
+                                if (pattern.endsWith('.*')) {
+                                    const base = pattern.slice(0, -2);
+                                    return currentPath.startsWith(base) && currentPath.split('.').length === base.split('.').length + 1;
+                                }
+                                return pattern === currentPath;
+                            } else if (pattern instanceof RegExp) {
+                                return pattern.test(currentPath);
+                            }
+                            return false;
+                        });
+                        if (!isAllowed) {
+                            throw new ZontaxMergeError(`Extension '${methodName}' is not allowed on path '${currentPath}'.`);
+                        }
+                    }
                     if (namespace) {
+                        if (!data.namespaces) data.namespaces = {};
                         if (!data.namespaces[namespace]) data.namespaces[namespace] = {};
                         data.namespaces[namespace][extName] = { value: args.length === 1 ? args[0] : args };
                     } else {
@@ -150,7 +155,7 @@ export class ZontaxParser {
     if (node.type === 'ObjectExpression') {
         const fields: any = {};
         for (const prop of node.properties) {
-            fields[prop.key.name] = this.buildDefinition(prop.value);
+            fields[prop.key.name] = this.buildDefinition(prop.value, [...path, prop.key.name]);
         }
         return { type: 'object', fields };
     }

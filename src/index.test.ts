@@ -100,7 +100,7 @@ describe('ZontaxParser', () => {
             const uiView = ZontaxParser.getDefinitionByNamespace(definition, 'ui');
             expect(Object.keys(uiView)).toEqual(['name', 'age']);
             expect(uiView.name.namespaces.ui.label).toBeDefined();
-            expect(uiView.name.namespaces.doc).toBeUndefined();
+            expect(uiView.name.namespaces.doc).toBeUndefined(); // Ensure other namespaces are excluded
         });
     });
 
@@ -113,6 +113,46 @@ describe('ZontaxParser', () => {
             expect(generated).toHaveLength(1);
             expect(generated[0].name).toBe('label');
         });
+    });
+  });
+
+  describe('allowedOnPath Validation', () => {
+    const pathSchema: Extension[] = [
+        { 
+            name: 'restricted', 
+            allowedOn: ['string'], 
+            args: [], 
+            allowedOnPath: ['user.name', 'user.profile.*', /^user\.address\.(street|city)$/] 
+        }
+    ];
+    const parser = new ZontaxParser([{ namespace: 'test', extensions: pathSchema }]);
+
+    it('should allow extension on an exact path match', () => {
+        const schema = `Z.object({ user: Z.object({ name: Z.string().test$restricted() }) })`;
+        expect(() => parser.parse(schema)).not.toThrow();
+    });
+
+    it('should allow extension on a wildcard path match', () => {
+        const schema = `Z.object({ user: Z.object({ profile: Z.object({ bio: Z.string().test$restricted() }) }) })`;
+        expect(() => parser.parse(schema)).not.toThrow();
+    });
+
+    it('should allow extension on a regex path match', () => {
+        const schema1 = `Z.object({ user: Z.object({ address: Z.object({ street: Z.string().test$restricted() }) }) })`;
+        const schema2 = `Z.object({ user: Z.object({ address: Z.object({ city: Z.string().test$restricted() }) }) })`;
+        expect(() => parser.parse(schema1)).not.toThrow();
+        expect(() => parser.parse(schema2)).not.toThrow();
+    });
+
+    it('should throw an error for a disallowed path', () => {
+        const schema = `Z.object({ user: Z.object({ email: Z.string().test$restricted() }) })`;
+        expect(() => parser.parse(schema)).toThrow(ZontaxMergeError);
+        expect(() => parser.parse(schema)).toThrow("Extension 'test$restricted' is not allowed on path 'user.email'.");
+    });
+
+    it('should throw an error for a disallowed regex path', () => {
+        const schema = `Z.object({ user: Z.object({ address: Z.object({ country: Z.string().test$restricted() }) }) })`;
+        expect(() => parser.parse(schema)).toThrow("Extension 'test$restricted' is not allowed on path 'user.address.country'.");
     });
   });
 });
