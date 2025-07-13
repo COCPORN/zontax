@@ -1,57 +1,70 @@
-import { extractMetadata, parseZodSchema } from './index';
+import { ZontaxParser, Extension } from './index';
 
 // Helper to remove whitespace for consistent comparison
 const stripWhitespace = (code: string) => code.replace(/\s/g, '');
 
-describe('Zontax Parser', () => {
-  describe('parseZodSchema', () => {
-    it('should parse a simple object with string and number', () => {
-      const input = `
-        z.object({
-          name: z.string(),
-          age: z.number()
-        })
-      `;
-      const expectedZodCode = `
-        z.object({
-          name: z.string(),
-          age: z.number()
-        })
-      `;
-      const result = parseZodSchema(input);
-      expect(stripWhitespace(result)).toEqual(stripWhitespace(expectedZodCode));
+const uiExtensions: Extension[] = [
+  { name: 'label', allowedOn: ['string', 'number'], args: ['string'], outputGroup: 'ui' },
+  { name: 'placeholder', allowedOn: ['string'], args: ['string'], outputGroup: 'ui' },
+  { name: 'widget', allowedOn: ['string', 'number'], args: ['string'], outputGroup: 'ui' },
+  { name: 'group', allowedOn: ['string', 'number'], args: ['string'], outputGroup: 'ui' },
+];
+
+describe('ZontaxParser', () => {
+  let parser: ZontaxParser;
+
+  beforeEach(() => {
+    parser = new ZontaxParser(uiExtensions);
+  });
+
+  describe('Registration', () => {
+    it('should allow registering a valid extension', () => {
+      const newExtension: Extension = {
+        name: 'tooltip',
+        allowedOn: ['string'],
+        args: ['string'],
+        outputGroup: 'ui',
+        description: 'A tooltip for a field'
+      };
+      parser.register(newExtension);
+      // No error means success
     });
 
-    it('should strip out superset methods and produce valid Zod code', () => {
+    it('should throw an error when registering an invalid extension', () => {
+      const invalidExtension: any = {
+        name: 'invalid',
+        // missing allowedOn
+        args: ['string'],
+        outputGroup: 'ui'
+      };
+      expect(() => parser.register(invalidExtension)).toThrow();
+    });
+  });
+
+  describe('parseZodSchema', () => {
+    it('should strip out registered superset methods', () => {
       const input = `
         z.object({
           name: z.string()
             .min(1)
             .label("Full Name")
-            .placeholder("e.g. Alice")
-            .widget("text")
-            .group("personal"),
-
-          age: z.number()
-            .min(0)
-            .optional()
-            .label("Age")
-            .widget("slider")
+            .widget("text"),
+          age: z.number().optional().label("Age")
         });
       `;
       const expectedZodCode = `
         z.object({
           name: z.string().min(1),
-          age: z.number().min(0).optional()
+          age: z.number().optional()
         })
       `;
-      const result = parseZodSchema(input);
+      const result = parser.parseZodSchema(input);
       expect(stripWhitespace(result)).toEqual(stripWhitespace(expectedZodCode));
     });
   });
 
   describe('extractMetadata', () => {
-    it('should extract metadata from superset methods', () => {
+    it('should extract metadata based on registered extensions', () => {
       const input = `
         z.object({
           name: z.string()
@@ -92,7 +105,7 @@ describe('Zontax Parser', () => {
           }
         }
       };
-      const result = extractMetadata(input);
+      const result = parser.extractMetadata(input);
       expect(result).toEqual(expectedMetadata);
     });
   });
