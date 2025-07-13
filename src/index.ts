@@ -52,9 +52,9 @@ export class ZontaxParser {
     return Array.from(this.extensions.values());
   }
 
-  private buildMetadata(node: any, options?: { categories?: string[] }): any {
+  private buildDefinition(node: any, options?: { categories?: string[] }): any {
     if (node.type === 'ExpressionStatement') {
-        return this.buildMetadata(node.expression, options);
+        return this.buildDefinition(node.expression, options);
     }
     if (node.type === 'CallExpression') {
         let data: any = {};
@@ -63,7 +63,7 @@ export class ZontaxParser {
             const callee = current.callee;
             if (callee.type === 'MemberExpression') {
                 const methodName = callee.property.name;
-                const args = current.arguments.map((arg: any) => this.buildMetadata(arg, options));
+                const args = current.arguments.map((arg: any) => this.buildDefinition(arg, options));
                 const extension = this.extensions.get(methodName);
 
                 if (extension) {
@@ -90,7 +90,7 @@ export class ZontaxParser {
             current = callee.object;
         }
         if (current.type === 'CallExpression') {
-            const baseData = this.buildMetadata(current, options);
+            const baseData = this.buildDefinition(current, options);
             data = {...baseData, ...data};
         }
         return data;
@@ -98,7 +98,7 @@ export class ZontaxParser {
     if (node.type === 'ObjectExpression') {
         const fields: any = {};
         for (const prop of node.properties) {
-            fields[prop.key.name] = this.buildMetadata(prop.value, options);
+            fields[prop.key.name] = this.buildDefinition(prop.value, options);
         }
         return fields;
     }
@@ -113,8 +113,8 @@ export class ZontaxParser {
     const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
     const extensionNames = Array.from(this.extensions.keys());
 
-    // Build metadata from the original AST, passing the options
-    const metadata = this.buildMetadata(ast.body[0], options);
+    // Build definition from the original AST, passing the options
+    const definition = this.buildDefinition(ast.body[0], options);
 
     // Clone the AST for transformation to avoid side effects
     const astForSchema = JSON.parse(JSON.stringify(ast));
@@ -136,6 +136,6 @@ export class ZontaxParser {
 
     const schema = escodegen.generate(transformedAst.body[0].expression);
 
-    return { schema, metadata };
+    return { schema, definition };
   }
 }

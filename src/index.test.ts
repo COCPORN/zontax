@@ -53,20 +53,27 @@ describe('ZontaxParser', () => {
       })
     `;
 
-    it('should return both schema and full metadata by default', () => {
-        const { schema, metadata } = parser.parse(input);
+    it('should return both schema and full definition by default', () => {
+        const { schema, definition } = parser.parse(input);
 
         const expectedSchema = `z.object({ name: z.string().min(1), age: z.number().optional() })`;
         expect(stripWhitespace(schema)).toEqual(stripWhitespace(expectedSchema));
 
-        expect(metadata.fields.name.ui.label).toBe("Full Name");
-        expect(metadata.fields.name.doc.internalDoc).toBe("User's full name");
+        // Check for Zod schema parts
+        expect(definition.fields.name.type).toBe('string');
+        expect(definition.fields.name.validations.min).toBe(1);
+        expect(definition.fields.age.type).toBe('number');
+        expect(definition.fields.age.optional).toBe(true);
+
+        // Check for custom extension parts
+        expect(definition.fields.name.ui.label).toBe("Full Name");
+        expect(definition.fields.name.doc.internalDoc).toBe("User's full name");
     });
 
-    it('should filter metadata based on categories option', () => {
-        const { metadata } = parser.parse(input, { categories: ['ui'] });
-        expect(metadata.fields.name.ui.label).toBe("Full Name");
-        expect(metadata.fields.name.doc).toBeUndefined();
+    it('should filter definition based on categories option', () => {
+        const { definition } = parser.parse(input, { categories: ['ui'] });
+        expect(definition.fields.name.ui.label).toBe("Full Name");
+        expect(definition.fields.name.doc).toBeUndefined();
     });
 
     it('should throw an error for unregistered methods', () => {

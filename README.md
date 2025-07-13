@@ -3,18 +3,18 @@
 [![NPM version](https://img.shields.io/npm/v/zontax.svg)](https://www.npmjs.com/package/zontax)
 [![License](https://img.shields.io/npm/l/zontax.svg)](./LICENSE)
 
-Zontax is a powerful superset of the Zod schema language that allows you to embed arbitrary metadata directly within your schema definitions. It provides a parser that transforms this augmented syntax into two separate, useful outputs from a single function call:
+Zontax is a powerful superset of the Zod schema language that allows you to embed arbitrary definition directly within your schema definitions. It provides a parser that transforms this augmented syntax into two separate, useful outputs from a single function call:
 
 1.  A **clean Zod schema string** for validation.
-2.  A **structured JSON object** containing all the extracted metadata for any purpose, such as UI generation, documentation, or API behavior.
+2.  A **structured JSON object** containing all the extracted definition for any purpose, such as UI generation, documentation, or API behavior.
 
 This allows you to maintain a single source of truth for both data validation and any contextual information attached to your data structures.
 
 ## Key Features
 
-- **Unified API:** A single `parse()` method returns both the schema and metadata, ensuring efficiency and a great developer experience.
+- **Unified API:** A single `parse()` method returns both the schema and definition, ensuring efficiency and a great developer experience.
 - **Declarative & Human-Readable:** Write schemas that look and feel like Zod, but with extra descriptive power for any domain.
-- **Fully Extensible:** Define your own custom chainable methods using a Zod schema. Add domain-specific metadata for UI hints, documentation, analytics, API contracts, and more.
+- **Fully Extensible:** Define your own custom chainable methods using a Zod schema. Add domain-specific definition for UI hints, documentation, analytics, API contracts, and more.
 - **Safe & Secure:** Parses your schema definition using an Abstract Syntax Tree (AST), with no reliance on `eval()` or other unsafe code execution.
 - **TypeScript First:** Written in TypeScript, with type definitions included.
 
@@ -30,7 +30,7 @@ yarn add zontax
 
 ## How It Works
 
-The `ZontaxParser` takes a string of Zontax code and returns an object containing both the cleaned Zod schema string and the structured metadata.
+The `ZontaxParser` takes a string of Zontax code and returns an object containing both the cleaned Zod schema string and the structured definition.
 
 **Given this Zontax string:**
 ```javascript
@@ -53,7 +53,7 @@ const schemaString = `
 ```javascript
 {
   schema: 'z.object({name:z.string().min(1),age:z.number().min(0).optional()})',
-  metadata: {
+  definition: {
     type: 'object',
     fields: {
       name: {
@@ -116,17 +116,17 @@ const schemaString = `
   })
 `;
 
-// 4. Parse the string to get the schema and metadata
-const { schema, metadata } = parser.parse(schemaString);
+// 4. Parse the string to get the schema and definition
+const { schema, definition } = parser.parse(schemaString);
 
 // The `schema` is a clean Zod code string, ready for a safe parser
 // const liveSchema = parseZodString(schema);
 
-// The `metadata` contains the structured data from your extensions
-console.log(JSON.stringify(metadata, null, 2));
+// The `definition` contains the structured data from your extensions
+console.log(JSON.stringify(definition, null, 2));
 
-// You can also filter the metadata by category
-const { metadata: uiOnlyMetadata } = parser.parse(schemaString, { categories: ['ui'] });
+// You can also filter the definition by category
+const { definition: uiOnlyMetadata } = parser.parse(schemaString, { categories: ['ui'] });
 console.log(JSON.stringify(uiOnlyMetadata, null, 2));
 ```
 
