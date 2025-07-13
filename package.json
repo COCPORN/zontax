@@ -1,7 +1,7 @@
 {
-  "name": "zod-superset",
+  "name": "zontax",
   "version": "0.1.0",
-  "description": "Zod Superset Language and Parser",
+  "description": "Zontax - Zod Superset Language and Parser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -10,6 +10,7 @@
   },
   "keywords": [
     "zod",
+    "zontax",
     "schema",
     "parser",
     "metadata",
