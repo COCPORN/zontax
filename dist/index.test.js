@@ -75,7 +75,7 @@ describe('ZontaxParser', () => {
                 globalSchema,
                 { namespace: 'ui', extensions: uiSchema }
             ]);
-            const registrations = parser.getRegistrations();
+            const registrations = parser.getExtensions();
             expect(Object.keys(registrations)).toEqual(['_global', 'ui']);
             expect(registrations._global).toHaveLength(1);
             expect(registrations.ui).toHaveLength(2);
