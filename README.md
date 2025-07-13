@@ -139,6 +139,39 @@ const registered = parser.getRegisteredExtensions();
 console.log(registered.map(e => e.name)); // ['label', 'internalDoc']
 ```
 
+### Modes
+
+The `ZontaxParser` can be configured to run in one of two modes, passed via the constructor:
+
+#### `mode: 'strict'` (Default)
+
+In the default `strict` mode, the parser will throw an error if it encounters a method that is not a known Zod method or a registered extension. This is ideal for production environments where you want to enforce a strict schema contract.
+
+```typescript
+const parser = new ZontaxParser(myExtensions, { mode: 'strict' });
+const invalidInput = `z.string().unregistered()`;
+// Throws: Unrecognized method '.unregistered()'.
+expect(() => parser.parse(invalidInput)).toThrow();
+```
+
+#### `mode: 'loose'`
+
+In `loose` mode, the parser will not throw an error for unregistered methods. Instead, it will automatically capture them and place them in a special `extra` category within the `definition` object. This is useful for rapid development or for schemas where you don't need to formally define every possible piece of metadata.
+
+```typescript
+const parser = new ZontaxParser(myExtensions, { mode: 'loose' });
+const looseInput = `z.string().author("John Doe").deprecated(true)`;
+const { definition } = parser.parse(looseInput);
+
+/*
+definition.extra will be:
+{
+  "author": "John Doe",
+  "deprecated": true
+}
+*/
+```
+
 ## License
 
 This project is licensed under the ISC License.
