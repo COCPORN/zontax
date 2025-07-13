@@ -16,8 +16,12 @@
     "ui",
     "ast"
   ],
-  "author": "",
+  "author": "COCPORN",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/COCPORN/zontax.git"
+  },
   "dependencies": {
     "acorn": "^8.11.3",
     "escodegen": "^2.1.0"

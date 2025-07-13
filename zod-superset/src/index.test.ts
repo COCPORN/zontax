@@ -61,6 +61,15 @@ describe('ZontaxParser', () => {
       const result = parser.parseZodSchema(input);
       expect(stripWhitespace(result)).toEqual(stripWhitespace(expectedZodCode));
     });
+
+    it('should throw an error for unregistered methods', () => {
+      const input = `
+        z.object({
+          name: z.string().unregistered()
+        });
+      `;
+      expect(() => parser.parseZodSchema(input)).toThrow("Unrecognized method '.unregistered()'. Please register it as an extension.");
+    });
   });
 
   describe('extractMetadata', () => {
@@ -101,6 +110,30 @@ describe('ZontaxParser', () => {
             "ui": {
               "label": "Age",
               "widget": "slider"
+            }
+          }
+        }
+      };
+      const result = parser.extractMetadata(input);
+      expect(result).toEqual(expectedMetadata);
+    });
+
+    it('should ignore unregistered methods', () => {
+        const input = `
+        z.object({
+          name: z.string()
+            .label("Full Name")
+            .unregistered("some value")
+        });
+      `;
+      const expectedMetadata = {
+        "type": "object",
+        "fields": {
+          "name": {
+            "type": "string",
+            "validations": {},
+            "ui": {
+              "label": "Full Name"
             }
           }
         }

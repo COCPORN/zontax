@@ -13,6 +13,12 @@ export const ExtensionMethodSchema = z.object({
 
 export type Extension = z.infer<typeof ExtensionMethodSchema>;
 
+// Standard Zod methods that can be chained
+const KNOWN_ZOD_METHODS = [
+  'string', 'number', 'boolean', 'date', 'object', 'array',
+  'min', 'max', 'length', 'email', 'url', 'uuid', 'optional', 'nullable', 'default'
+];
+
 // A simple AST visitor with replacement capability
 function visit(node: any, visitor: { [key: string]: (node: any, state?: any) => any }, state: any = {}) {
     if (!node) return node;
@@ -71,6 +77,9 @@ export class ZontaxParser {
           if (extensionNames.includes(methodName)) {
             return node.callee.object; // Strip the extension method call
           }
+          if (!KNOWN_ZOD_METHODS.includes(methodName) && !this.extensions.has(methodName)) {
+            throw new Error(`Unrecognized method '.${methodName}()'. Please register it as an extension.`);
+          }
         }
         return node;
       }
@@ -103,12 +112,14 @@ export class ZontaxParser {
                   fieldData[group] = {};
                 }
                 fieldData[group][methodName] = args.length === 1 ? args[0] : args;
-              } else if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
-                fieldData.validations[methodName] = args[0];
-              } else if (methodName === 'string' || methodName === 'number' || methodName === 'boolean' || methodName === 'date') {
-                fieldData.type = methodName;
-              } else if (methodName === 'optional') {
-                fieldData.optional = true;
+              } else if (KNOWN_ZOD_METHODS.includes(methodName)) {
+                 if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
+                    fieldData.validations[methodName] = args[0];
+                } else if (['string', 'number', 'boolean', 'date'].includes(methodName)) {
+                    fieldData.type = methodName;
+                } else if (methodName === 'optional') {
+                    fieldData.optional = true;
+                }
               }
             }
             current = callee.object;
