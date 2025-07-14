@@ -85,7 +85,7 @@ const uiSchema = `Z.object({ username: Z.string().ui$label("Username") })`;
 **Composition:**
 ```javascript
 import { ZontaxParser } from 'zontax';
-const parser = new ZontaxParser([/* ...registrations */]);
+const parser = new ZontaxParser({}, [/* ...registrations */]);
 const { schema, definition } = parser.parse(baseSchema, uiSchema);
 ```
 
@@ -127,8 +127,8 @@ const userSchema = `
   })
 `;
 
-const legacyParser = new ZontaxParser([], { zodVersion: '3' });
-const modernParser = new ZontaxParser([], { zodVersion: '4' });
+const legacyParser = new ZontaxParser({ zodVersion: '3' });
+const modernParser = new ZontaxParser({ zodVersion: '4' });
 
 const legacyZod = legacyParser.parse(userSchema).schema;
 const modernZod = modernParser.parse(userSchema).schema;
@@ -170,12 +170,12 @@ const uiSchema: Extension[] = [
 ];
 
 // Register uiSchema under the 'ui' namespace
-const parser = new ZontaxParser([
-  { namespace: 'ui', extensions: uiSchema }
-], {
+const parser = new ZontaxParser({
   mode: 'strict',      // or 'loose' for development
   zodVersion: '4'      // or '3' for legacy support
-});
+}, [
+  { namespace: 'ui', extensions: uiSchema }
+]);
 ```
 
 ### Introspection

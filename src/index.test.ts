@@ -20,20 +20,20 @@ describe('ZontaxParser', () => {
 
   describe('Initialization', () => {
     it('should register global extensions', () => {
-      const parser = new ZontaxParser([globalSchema]);
+      const parser = new ZontaxParser({}, [globalSchema]);
       const { schema } = parser.parse('Z.string().analyticsId("test")');
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
     it('should register namespaced extensions', () => {
-      const parser = new ZontaxParser([{ namespace: 'ui', extensions: uiSchema }]);
+      const parser = new ZontaxParser({}, [{ namespace: 'ui', extensions: uiSchema }]);
       const { schema } = parser.parse('Z.string().ui$label("Name")');
       expect(() => parseZodString(schema)).not.toThrow();
     });
   });
 
   describe('Composition (Multi-Schema Parsing)', () => {
-    const parser = new ZontaxParser([
+    const parser = new ZontaxParser({}, [
       { namespace: 'ui', extensions: uiSchema },
       { namespace: 'doc', extensions: docSchema },
     ]);
@@ -194,20 +194,20 @@ describe('ZontaxParser', () => {
     });
 
     it('should support explicit Zod 4', () => {
-      const parser = new ZontaxParser([], { zodVersion: '4' });
+      const parser = new ZontaxParser({ zodVersion: '4' });
       const { schema } = parser.parse('Z.string().describe("test")');
       expect(schema).toBe('z.string().describe("test")');
     });
 
     it('should support explicit Zod 3', () => {
-      const parser = new ZontaxParser([], { zodVersion: '3' });
+      const parser = new ZontaxParser({ zodVersion: '3' });
       const { schema } = parser.parse('Z.string().describe("test")');
       expect(schema).toBe('z.string().describe("test")');
     });
 
     it('should generate identical output for basic types in both versions', () => {
-      const parser3 = new ZontaxParser([], { zodVersion: '3' });
-      const parser4 = new ZontaxParser([], { zodVersion: '4' });
+      const parser3 = new ZontaxParser({ zodVersion: '3' });
+      const parser4 = new ZontaxParser({ zodVersion: '4' });
 
       const basicTypes = [
         'Z.string()',
@@ -232,8 +232,8 @@ describe('ZontaxParser', () => {
     });
 
     it('should generate identical output for complex types in both versions', () => {
-      const parser3 = new ZontaxParser([], { zodVersion: '3' });
-      const parser4 = new ZontaxParser([], { zodVersion: '4' });
+      const parser3 = new ZontaxParser({ zodVersion: '3' });
+      const parser4 = new ZontaxParser({ zodVersion: '4' });
 
       const complexTypes = [
         'Z.object({name: Z.string()})',
@@ -252,8 +252,8 @@ describe('ZontaxParser', () => {
     });
 
     it('should generate identical output for method chaining in both versions', () => {
-      const parser3 = new ZontaxParser([], { zodVersion: '3' });
-      const parser4 = new ZontaxParser([], { zodVersion: '4' });
+      const parser3 = new ZontaxParser({ zodVersion: '3' });
+      const parser4 = new ZontaxParser({ zodVersion: '4' });
 
       const chainedMethods = [
         'Z.string().min(3).max(10).optional()',
@@ -271,8 +271,8 @@ describe('ZontaxParser', () => {
 
     it('should work with extensions in both versions', () => {
       const extensions = [{ name: 'label', allowedOn: ['string'], args: ['string'] }];
-      const parser3 = new ZontaxParser([extensions], { zodVersion: '3' });
-      const parser4 = new ZontaxParser([extensions], { zodVersion: '4' });
+      const parser3 = new ZontaxParser({ zodVersion: '3' }, [extensions]);
+      const parser4 = new ZontaxParser({ zodVersion: '4' }, [extensions]);
 
       const input = 'Z.string().label("Name")';
       const schema3 = parser3.parse(input).schema;
@@ -284,8 +284,8 @@ describe('ZontaxParser', () => {
     });
 
     it('should handle nested structures in both versions', () => {
-      const parser3 = new ZontaxParser([], { zodVersion: '3' });
-      const parser4 = new ZontaxParser([], { zodVersion: '4' });
+      const parser3 = new ZontaxParser({ zodVersion: '3' });
+      const parser4 = new ZontaxParser({ zodVersion: '4' });
 
       const input = 'Z.object({user: Z.object({name: Z.string().min(1), age: Z.number().int()})})';
       const schema3 = parser3.parse(input).schema;
@@ -298,12 +298,12 @@ describe('ZontaxParser', () => {
 
   describe('Modes (Strict vs. Loose)', () => {
     it('should throw in strict mode for unregistered methods', () => {
-      const parser = new ZontaxParser([], { mode: 'strict' });
+      const parser = new ZontaxParser({ mode: 'strict' });
       expect(() => parser.parse('Z.string().unregistered()')).toThrow();
     });
 
     it('should capture loose methods and produce a valid schema', () => {
-      const parser = new ZontaxParser([], { mode: 'loose' });
+      const parser = new ZontaxParser({ mode: 'loose' });
       const { definition, schema } = parser.parse('Z.string().author("John").meta$version(2)');
       expect(definition.extensions.author.value).toBe('John');
       expect(definition.namespaces.meta.version.value).toBe(2);
@@ -313,7 +313,7 @@ describe('ZontaxParser', () => {
 
   describe('Introspection', () => {
     it('should return a map of all registered extensions', () => {
-      const parser = new ZontaxParser([
+      const parser = new ZontaxParser({}, [
         globalSchema,
         { namespace: 'ui', extensions: uiSchema }
       ]);
@@ -327,7 +327,7 @@ describe('ZontaxParser', () => {
   });
 
   describe('Static Helpers', () => {
-    const parser = new ZontaxParser([
+    const parser = new ZontaxParser({}, [
         { namespace: 'ui', extensions: uiSchema },
         { namespace: 'doc', extensions: docSchema },
     ]);
@@ -348,7 +348,7 @@ describe('ZontaxParser', () => {
     });
 
     describe('generateSchemaFromDefinition', () => {
-        const looseParser = new ZontaxParser([], { mode: 'loose' });
+        const looseParser = new ZontaxParser({ mode: 'loose' });
         const looseDef = looseParser.parse(`Z.object({ name: Z.string().ui$label("Name") })`).definition;
 
         it('should generate a schema for a specific namespace', () => {
@@ -368,7 +368,7 @@ describe('ZontaxParser', () => {
             allowedOnPath: ['user.name', 'user.profile.*', /^user\.address\.(street|city)$/] 
         }
     ];
-    const parser = new ZontaxParser([{ namespace: 'test', extensions: pathSchema }]);
+    const parser = new ZontaxParser({}, [{ namespace: 'test', extensions: pathSchema }]);
 
     it('should allow extension on an exact path match', () => {
         const schema = `Z.object({ user: Z.object({ name: Z.string().test$restricted() }) })`;

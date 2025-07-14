@@ -57,7 +57,7 @@ const KNOWN_ZOD_METHODS = [
     'int', 'positive', 'negative', 'describe', 'enum', 'literal', 'tuple', 'union'
 ];
 class ZontaxParser {
-    constructor(registrations = [], options = {}) {
+    constructor(options = {}, registrations = []) {
         this.globalExtensions = new Map();
         this.namespacedExtensions = new Map();
         this.mode = options.mode || 'strict';

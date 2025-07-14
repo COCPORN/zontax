@@ -36,7 +36,7 @@ export declare class ZontaxParser {
     private namespacedExtensions;
     private mode;
     private zodVersion;
-    constructor(registrations?: SchemaRegistration[], options?: ZontaxParserOptions);
+    constructor(options?: ZontaxParserOptions, registrations?: SchemaRegistration[]);
     private registerGlobal;
     private registerNamespace;
     private buildDefinition;

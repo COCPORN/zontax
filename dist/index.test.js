@@ -16,18 +16,18 @@ const globalSchema = [
 describe('ZontaxParser', () => {
     describe('Initialization', () => {
         it('should register global extensions', () => {
-            const parser = new index_1.ZontaxParser([globalSchema]);
+            const parser = new index_1.ZontaxParser({}, [globalSchema]);
             const { schema } = parser.parse('Z.string().analyticsId("test")');
             expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
         });
         it('should register namespaced extensions', () => {
-            const parser = new index_1.ZontaxParser([{ namespace: 'ui', extensions: uiSchema }]);
+            const parser = new index_1.ZontaxParser({}, [{ namespace: 'ui', extensions: uiSchema }]);
             const { schema } = parser.parse('Z.string().ui$label("Name")');
             expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
         });
     });
     describe('Composition (Multi-Schema Parsing)', () => {
-        const parser = new index_1.ZontaxParser([
+        const parser = new index_1.ZontaxParser({}, [
             { namespace: 'ui', extensions: uiSchema },
             { namespace: 'doc', extensions: docSchema },
         ]);
@@ -158,13 +158,105 @@ describe('ZontaxParser', () => {
             expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
         });
     });
+    describe('Zod Version Support', () => {
+        it('should default to Zod 4', () => {
+            const parser = new index_1.ZontaxParser();
+            const { schema } = parser.parse('Z.string().describe("test")');
+            expect(schema).toBe('z.string().describe("test")');
+        });
+        it('should support explicit Zod 4', () => {
+            const parser = new index_1.ZontaxParser({ zodVersion: '4' });
+            const { schema } = parser.parse('Z.string().describe("test")');
+            expect(schema).toBe('z.string().describe("test")');
+        });
+        it('should support explicit Zod 3', () => {
+            const parser = new index_1.ZontaxParser({ zodVersion: '3' });
+            const { schema } = parser.parse('Z.string().describe("test")');
+            expect(schema).toBe('z.string().describe("test")');
+        });
+        it('should generate identical output for basic types in both versions', () => {
+            const parser3 = new index_1.ZontaxParser({ zodVersion: '3' });
+            const parser4 = new index_1.ZontaxParser({ zodVersion: '4' });
+            const basicTypes = [
+                'Z.string()',
+                'Z.number()',
+                'Z.boolean()',
+                'Z.date()',
+                'Z.string().min(5)',
+                'Z.string().max(10)',
+                'Z.string().optional()',
+                'Z.string().nullable()',
+                'Z.string().default("test")',
+                'Z.number().int()',
+                'Z.number().positive()',
+                'Z.number().negative()'
+            ];
+            basicTypes.forEach(input => {
+                const schema3 = parser3.parse(input).schema;
+                const schema4 = parser4.parse(input).schema;
+                expect(schema3).toBe(schema4);
+            });
+        });
+        it('should generate identical output for complex types in both versions', () => {
+            const parser3 = new index_1.ZontaxParser({ zodVersion: '3' });
+            const parser4 = new index_1.ZontaxParser({ zodVersion: '4' });
+            const complexTypes = [
+                'Z.object({name: Z.string()})',
+                'Z.array(Z.string())',
+                'Z.enum(["a", "b", "c"])',
+                'Z.literal("test")',
+                'Z.tuple([Z.string(), Z.number()])',
+                'Z.union([Z.string(), Z.number()])'
+            ];
+            complexTypes.forEach(input => {
+                const schema3 = parser3.parse(input).schema;
+                const schema4 = parser4.parse(input).schema;
+                expect(schema3).toBe(schema4);
+            });
+        });
+        it('should generate identical output for method chaining in both versions', () => {
+            const parser3 = new index_1.ZontaxParser({ zodVersion: '3' });
+            const parser4 = new index_1.ZontaxParser({ zodVersion: '4' });
+            const chainedMethods = [
+                'Z.string().min(3).max(10).optional()',
+                'Z.string().email().describe("Email address")',
+                'Z.number().int().positive().default(1)',
+                'Z.string().min(1).nullable().describe("Name")'
+            ];
+            chainedMethods.forEach(input => {
+                const schema3 = parser3.parse(input).schema;
+                const schema4 = parser4.parse(input).schema;
+                expect(schema3).toBe(schema4);
+            });
+        });
+        it('should work with extensions in both versions', () => {
+            const extensions = [{ name: 'label', allowedOn: ['string'], args: ['string'] }];
+            const parser3 = new index_1.ZontaxParser({ zodVersion: '3' }, [extensions]);
+            const parser4 = new index_1.ZontaxParser({ zodVersion: '4' }, [extensions]);
+            const input = 'Z.string().label("Name")';
+            const schema3 = parser3.parse(input).schema;
+            const schema4 = parser4.parse(input).schema;
+            expect(schema3).toBe('z.string()');
+            expect(schema4).toBe('z.string()');
+            expect(schema3).toBe(schema4);
+        });
+        it('should handle nested structures in both versions', () => {
+            const parser3 = new index_1.ZontaxParser({ zodVersion: '3' });
+            const parser4 = new index_1.ZontaxParser({ zodVersion: '4' });
+            const input = 'Z.object({user: Z.object({name: Z.string().min(1), age: Z.number().int()})})';
+            const schema3 = parser3.parse(input).schema;
+            const schema4 = parser4.parse(input).schema;
+            expect(schema3).toBe(schema4);
+            expect(schema3).toBe('z.object({ user: z.object({ name: z.string().min(1), age: z.number().int() }) })');
+        });
+    });
     describe('Modes (Strict vs. Loose)', () => {
         it('should throw in strict mode for unregistered methods', () => {
-            const parser = new index_1.ZontaxParser([], { mode: 'strict' });
+            const parser = new index_1.ZontaxParser({ mode: 'strict' });
             expect(() => parser.parse('Z.string().unregistered()')).toThrow();
         });
         it('should capture loose methods and produce a valid schema', () => {
-            const parser = new index_1.ZontaxParser([], { mode: 'loose' });
+            const parser = new index_1.ZontaxParser({ mode: 'loose' });
             const { definition, schema } = parser.parse('Z.string().author("John").meta$version(2)');
             expect(definition.extensions.author.value).toBe('John');
             expect(definition.namespaces.meta.version.value).toBe(2);
@@ -173,7 +265,7 @@ describe('ZontaxParser', () => {
     });
     describe('Introspection', () => {
         it('should return a map of all registered extensions', () => {
-            const parser = new index_1.ZontaxParser([
+            const parser = new index_1.ZontaxParser({}, [
                 globalSchema,
                 { namespace: 'ui', extensions: uiSchema }
             ]);
@@ -186,7 +278,7 @@ describe('ZontaxParser', () => {
         });
     });
     describe('Static Helpers', () => {
-        const parser = new index_1.ZontaxParser([
+        const parser = new index_1.ZontaxParser({}, [
             { namespace: 'ui', extensions: uiSchema },
             { namespace: 'doc', extensions: docSchema },
         ]);
@@ -205,7 +297,7 @@ describe('ZontaxParser', () => {
             });
         });
         describe('generateSchemaFromDefinition', () => {
-            const looseParser = new index_1.ZontaxParser([], { mode: 'loose' });
+            const looseParser = new index_1.ZontaxParser({ mode: 'loose' });
             const looseDef = looseParser.parse(`Z.object({ name: Z.string().ui$label("Name") })`).definition;
             it('should generate a schema for a specific namespace', () => {
                 const generated = index_1.ZontaxParser.generateSchemaFromDefinition(looseDef, 'ui');
@@ -223,7 +315,7 @@ describe('ZontaxParser', () => {
                 allowedOnPath: ['user.name', 'user.profile.*', /^user\.address\.(street|city)$/]
             }
         ];
-        const parser = new index_1.ZontaxParser([{ namespace: 'test', extensions: pathSchema }]);
+        const parser = new index_1.ZontaxParser({}, [{ namespace: 'test', extensions: pathSchema }]);
         it('should allow extension on an exact path match', () => {
             const schema = `Z.object({ user: Z.object({ name: Z.string().test$restricted() }) })`;
             expect(() => parser.parse(schema)).not.toThrow();

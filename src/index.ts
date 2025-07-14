@@ -41,7 +41,7 @@ export class ZontaxParser {
   private mode: 'strict' | 'loose';
   private zodVersion: '3' | '4';
 
-  constructor(registrations: SchemaRegistration[] = [], options: ZontaxParserOptions = {}) {
+  constructor(options: ZontaxParserOptions = {}, registrations: SchemaRegistration[] = []) {
     this.mode = options.mode || 'strict';
     this.zodVersion = options.zodVersion || '4';
     for (const reg of registrations) {
