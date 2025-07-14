@@ -26,6 +26,7 @@ export interface SchemaRegistrationObject {
 export type SchemaRegistration = Extension[] | SchemaRegistrationObject;
 export interface ZontaxParserOptions {
   mode?: 'strict' | 'loose';
+  zodVersion?: '3' | '4';
 }
 
 const KNOWN_ZOD_METHODS = [
@@ -38,9 +39,11 @@ export class ZontaxParser {
   private globalExtensions = new Map<string, Extension>();
   private namespacedExtensions = new Map<string, Map<string, Extension>>();
   private mode: 'strict' | 'loose';
+  private zodVersion: '3' | '4';
 
   constructor(registrations: SchemaRegistration[] = [], options: ZontaxParserOptions = {}) {
     this.mode = options.mode || 'strict';
+    this.zodVersion = options.zodVersion || '4';
     for (const reg of registrations) {
       if (Array.isArray(reg)) {
         this.registerGlobal(reg);
@@ -261,6 +264,13 @@ export class ZontaxParser {
     return base;
   }
 
+  private generateVersionSpecificMethod(method: string, args: string[] = []): string {
+      // Handle version-specific method generation
+      // Currently most methods are the same across versions
+      const argStr = args.length > 0 ? `(${args.join(', ')})` : '()';
+      return `z.${method}${argStr}`;
+  }
+
   private generateSchemaString(def: any): string {
       if (!def || !def.type) return '';
       let chain = '';
@@ -272,6 +282,7 @@ export class ZontaxParser {
       } else if (def.type === 'enum') {
           const values = Array.isArray(def.values) ? def.values : [def.values];
           const valuesStr = values.map((v: any) => JSON.stringify(v)).join(', ');
+          // Both Zod 3 and 4 support z.enum([...]) for string arrays
           chain = `z.enum([${valuesStr}])`;
       } else if (def.type === 'literal') {
           chain = `z.literal(${JSON.stringify(def.value)})`;

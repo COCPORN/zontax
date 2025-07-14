@@ -29,16 +29,19 @@ export interface SchemaRegistrationObject {
 export type SchemaRegistration = Extension[] | SchemaRegistrationObject;
 export interface ZontaxParserOptions {
     mode?: 'strict' | 'loose';
+    zodVersion?: '3' | '4';
 }
 export declare class ZontaxParser {
     private globalExtensions;
     private namespacedExtensions;
     private mode;
+    private zodVersion;
     constructor(registrations?: SchemaRegistration[], options?: ZontaxParserOptions);
     private registerGlobal;
     private registerNamespace;
     private buildDefinition;
     private deepMergeDefinitions;
+    private generateVersionSpecificMethod;
     private generateSchemaString;
     parse(...sources: string[]): {
         schema: string;

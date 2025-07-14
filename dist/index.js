@@ -61,6 +61,7 @@ class ZontaxParser {
         this.globalExtensions = new Map();
         this.namespacedExtensions = new Map();
         this.mode = options.mode || 'strict';
+        this.zodVersion = options.zodVersion || '4';
         for (const reg of registrations) {
             if (Array.isArray(reg)) {
                 this.registerGlobal(reg);
@@ -311,6 +312,12 @@ class ZontaxParser {
         }
         return base;
     }
+    generateVersionSpecificMethod(method, args = []) {
+        // Handle version-specific method generation
+        // Currently most methods are the same across versions
+        const argStr = args.length > 0 ? `(${args.join(', ')})` : '()';
+        return `z.${method}${argStr}`;
+    }
     generateSchemaString(def) {
         if (!def || !def.type)
             return '';
@@ -325,6 +332,7 @@ class ZontaxParser {
         else if (def.type === 'enum') {
             const values = Array.isArray(def.values) ? def.values : [def.values];
             const valuesStr = values.map((v) => JSON.stringify(v)).join(', ');
+            // Both Zod 3 and 4 support z.enum([...]) for string arrays
             chain = `z.enum([${valuesStr}])`;
         }
         else if (def.type === 'literal') {

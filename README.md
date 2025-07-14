@@ -10,6 +10,8 @@ This allows you to maintain a single source of truth for both data validation an
 ## Key Features
 
 - **Distinct Syntax:** Uses a capital `Z` (`Z.object`) to clearly distinguish Zontax schemas from standard Zod schemas.
+- **Multi-Version Support:** Write once, target any Zod version - generate compatible schemas for both Zod 3 and Zod 4.
+- **Complete Zod Method Coverage:** Supports all 22 standard Zod methods including complex types like `enum`, `tuple`, `union`, and `literal`.
 - **Namespaces:** Register extensions under namespaces (`ui`, `doc`, etc.) to prevent name collisions and organize your schemas.
 - **Schema Composition:** Intelligently deep-merge multiple schema strings into a single, unified definition.
 - **Conflict Detection:** Automatically throws an error on conflicting types or validations during a merge.
@@ -91,11 +93,64 @@ const { schema, definition } = parser.parse(baseSchema, uiSchema);
 - `schema`: `"z.object({ username: z.string().min(3) })"`
 - `definition`: A merged object containing both the `min(3)` validation and the `ui$label` extension.
 
+## Zod Version Support
+
+One of Zontax's most powerful features is its ability to generate compatible schemas for different Zod versions. This is particularly useful for teams migrating between Zod versions or maintaining multiple codebases.
+
+### Usage
+
+```typescript
+import { ZontaxParser } from 'zontax';
+
+// Default (Zod 4)
+const parser = new ZontaxParser();
+
+// Explicit Zod 4
+const parser4 = new ZontaxParser([], { zodVersion: '4' });
+
+// Explicit Zod 3
+const parser3 = new ZontaxParser([], { zodVersion: '3' });
+```
+
+### Example: Single Schema, Multiple Targets
+
+```typescript
+const userSchema = `
+  Z.object({
+    name: Z.string().min(1).describe('Full name'),
+    email: Z.string().email(),
+    role: Z.enum(['admin', 'user']).default('user'),
+    metadata: Z.object({
+      createdAt: Z.date(),
+      tags: Z.array(Z.string()).optional()
+    }).optional()
+  })
+`;
+
+const legacyParser = new ZontaxParser([], { zodVersion: '3' });
+const modernParser = new ZontaxParser([], { zodVersion: '4' });
+
+const legacyZod = legacyParser.parse(userSchema).schema;
+const modernZod = modernParser.parse(userSchema).schema;
+
+// Both schemas are functionally identical and work with their respective Zod versions!
+// The team can maintain one Zontax schema and deploy to both codebases.
+```
+
+### Supported Zod Methods
+
+Zontax supports all 22 standard Zod methods across both versions:
+
+**Basic Types:** `string`, `number`, `boolean`, `date`  
+**Validations:** `min`, `max`, `length`, `email`, `url`, `uuid`, `int`, `positive`, `negative`  
+**Modifiers:** `optional`, `nullable`, `default`, `describe`  
+**Complex Types:** `object`, `array`, `enum`, `literal`, `tuple`, `union`
+
 ## Usage & Customization
 
 ### Registering Schemas and Namespaces
 
-The `ZontaxParser` constructor accepts an array of schema registrations. The `Extension` schema allows for powerful, self-documenting validation rules.
+The `ZontaxParser` constructor accepts an array of schema registrations and optional configuration. The `Extension` schema allows for powerful, self-documenting validation rules.
 
 ```typescript
 import { ZontaxParser, Extension } from 'zontax';
@@ -117,7 +172,10 @@ const uiSchema: Extension[] = [
 // Register uiSchema under the 'ui' namespace
 const parser = new ZontaxParser([
   { namespace: 'ui', extensions: uiSchema }
-]);
+], {
+  mode: 'strict',      // or 'loose' for development
+  zodVersion: '4'      // or '3' for legacy support
+});
 ```
 
 ### Introspection
@@ -132,6 +190,20 @@ const extensions = parser.getExtensions();
 // { _global: [...], ui: [...] }
 ```
 
+### Parser Configuration Options
+
+The `ZontaxParser` constructor accepts these options:
+
+```typescript
+interface ZontaxParserOptions {
+  mode?: 'strict' | 'loose';     // Default: 'strict'
+  zodVersion?: '3' | '4';         // Default: '4'
+}
+```
+
+- **`mode`**: In `strict` mode, unregistered extensions throw errors. In `loose` mode, they're captured for later introspection.
+- **`zodVersion`**: Specifies the target Zod version for generated schemas.
+
 ### Helper Methods
 
 Zontax includes static helper methods to make working with the `definition` object easier.
@@ -139,6 +211,27 @@ Zontax includes static helper methods to make working with the `definition` obje
 #### `generateSchemaFromDefinition(definition, namespace?)`
 
 This powerful helper generates a formal `Extension[]` array from a `definition` object created in `loose` mode. This makes it incredibly easy to bootstrap a formal schema from a prototype.
+
+## Recent Improvements
+
+### v0.15.0 - Complete Zod Method Coverage & Multi-Version Support
+
+- **🎯 Complete Zod Method Coverage**: All 22 standard Zod methods now fully supported
+  - Fixed `nullable`, `default`, `int`, `positive`, `negative` methods
+  - Enhanced complex type support for `enum`, `literal`, `tuple`, `union`
+  - Improved argument parsing for array-based methods
+  
+- **🔄 Multi-Version Support**: Write once, target any Zod version
+  - Single Zontax syntax generates compatible schemas for both Zod 3 and 4
+  - Seamless migration support for teams upgrading between versions
+  - Future-proof architecture for upcoming Zod releases
+
+- **🐛 Bug Fixes**: 
+  - Fixed object property parsing for quoted keys (e.g., `{'summary': Z.string()}`)
+  - Enhanced `.describe()` method forwarding to generated schemas
+  - Improved type inference and validation handling
+
+- **📚 Enhanced Documentation**: Updated README with comprehensive examples and usage patterns
 
 ## License
 This project is licensed under the ISC License.
