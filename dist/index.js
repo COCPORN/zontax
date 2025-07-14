@@ -190,7 +190,8 @@ class ZontaxParser {
         if (node.type === 'ObjectExpression') {
             const fields = {};
             for (const prop of node.properties) {
-                fields[prop.key.name] = this.buildDefinition(prop.value, [...path, prop.key.name]);
+                const key = prop.key.type === 'Literal' ? prop.key.value : prop.key.name;
+                fields[key] = this.buildDefinition(prop.value, [...path, key]);
             }
             return { type: 'object', fields };
         }
