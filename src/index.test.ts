@@ -103,6 +103,87 @@ describe('ZontaxParser', () => {
       expect(definition.validations.max).toBe(100);
       expect(() => parseZodString(schema)).not.toThrow();
     });
+
+    it('should support .nullable() method', () => {
+      const { schema, definition } = parser.parse('Z.string().nullable()');
+      expect(schema).toBe('z.string().nullable()');
+      expect(definition.nullable).toBe(true);
+      expect(() => parseZodString(schema)).not.toThrow();
+    });
+
+    it('should support .default() method', () => {
+      const { schema, definition } = parser.parse('Z.string().default("test")');
+      expect(schema).toBe('z.string().default("test")');
+      expect(definition.defaultValue).toBe('test');
+      expect(() => parseZodString(schema)).not.toThrow();
+    });
+
+    it('should support number validations (int, positive, negative)', () => {
+      const { schema: intSchema } = parser.parse('Z.number().int()');
+      expect(intSchema).toBe('z.number().int()');
+      expect(() => parseZodString(intSchema)).not.toThrow();
+
+      const { schema: positiveSchema } = parser.parse('Z.number().positive()');
+      expect(positiveSchema).toBe('z.number().positive()');
+      expect(() => parseZodString(positiveSchema)).not.toThrow();
+
+      const { schema: negativeSchema } = parser.parse('Z.number().negative()');
+      expect(negativeSchema).toBe('z.number().negative()');
+      expect(() => parseZodString(negativeSchema)).not.toThrow();
+    });
+
+    it('should support .enum() method', () => {
+      const { schema, definition } = parser.parse('Z.enum(["a", "b", "c"])');
+      expect(schema).toBe('z.enum(["a", "b", "c"])');
+      expect(definition.type).toBe('enum');
+      expect(definition.values).toEqual(['a', 'b', 'c']);
+      expect(() => parseZodString(schema)).not.toThrow();
+    });
+
+    it('should support .literal() method', () => {
+      const { schema, definition } = parser.parse('Z.literal("test")');
+      expect(schema).toBe('z.literal("test")');
+      expect(definition.type).toBe('literal');
+      expect(definition.value).toBe('test');
+      expect(() => parseZodString(schema)).not.toThrow();
+    });
+
+    it('should support .tuple() method', () => {
+      const { schema, definition } = parser.parse('Z.tuple([Z.string(), Z.number()])');
+      expect(schema).toBe('z.tuple([z.string(), z.number()])');
+      expect(definition.type).toBe('tuple');
+      expect(definition.items).toHaveLength(2);
+      expect(definition.items[0].type).toBe('string');
+      expect(definition.items[1].type).toBe('number');
+      expect(() => parseZodString(schema)).not.toThrow();
+    });
+
+    it('should support .union() method', () => {
+      const { schema, definition } = parser.parse('Z.union([Z.string(), Z.number()])');
+      expect(schema).toBe('z.union([z.string(), z.number()])');
+      expect(definition.type).toBe('union');
+      expect(definition.options).toHaveLength(2);
+      expect(definition.options[0].type).toBe('string');
+      expect(definition.options[1].type).toBe('number');
+      expect(() => parseZodString(schema)).not.toThrow();
+    });
+
+    it('should support complex method chaining', () => {
+      const { schema, definition } = parser.parse('Z.string().min(3).max(10).optional().nullable().describe("Name")');
+      expect(schema).toBe('z.string().max(10).min(3).describe("Name").nullable().optional()');
+      expect(definition.validations.min).toBe(3);
+      expect(definition.validations.max).toBe(10);
+      expect(definition.optional).toBe(true);
+      expect(definition.nullable).toBe(true);
+      expect(definition.description).toBe('Name');
+      expect(() => parseZodString(schema)).not.toThrow();
+    });
+
+    it('should support complex nested structures', () => {
+      const { schema } = parser.parse('Z.union([Z.string().email(), Z.literal("admin")])');
+      expect(schema).toBe('z.union([z.string().email(), z.literal("admin")])');
+      expect(() => parseZodString(schema)).not.toThrow();
+    });
   });
 
   describe('Modes (Strict vs. Loose)', () => {

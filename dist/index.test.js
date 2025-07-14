@@ -56,6 +56,38 @@ describe('ZontaxParser', () => {
             expect(() => parser.parse(s1, s2)).toThrow(new index_1.ZontaxMergeError(expectedError));
         });
     });
+    describe('Zod Method Support', () => {
+        const parser = new index_1.ZontaxParser();
+        it('should support .describe() method', () => {
+            const { schema, definition } = parser.parse('Z.string().describe("A user name")');
+            expect(schema).toBe('z.string().describe("A user name")');
+            expect(definition.description).toBe('A user name');
+            expect(definition.type).toBe('string');
+            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
+        });
+        it('should support .describe() with other methods', () => {
+            const { schema, definition } = parser.parse('Z.string().min(3).describe("Username").optional()');
+            expect(schema).toBe('z.string().min(3).describe("Username").optional()');
+            expect(definition.description).toBe('Username');
+            expect(definition.validations.min).toBe(3);
+            expect(definition.optional).toBe(true);
+            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
+        });
+        it('should support .describe() in object fields', () => {
+            const { schema, definition } = parser.parse('Z.object({name: Z.string().describe("User full name")})');
+            expect(schema).toBe('z.object({ name: z.string().describe("User full name") })');
+            expect(definition.fields.name.description).toBe('User full name');
+            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
+        });
+        it('should support .describe() with validations', () => {
+            const { schema, definition } = parser.parse('Z.number().min(0).max(100).describe("Percentage value")');
+            expect(schema).toBe('z.number().max(100).min(0).describe("Percentage value")');
+            expect(definition.description).toBe('Percentage value');
+            expect(definition.validations.min).toBe(0);
+            expect(definition.validations.max).toBe(100);
+            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
+        });
+    });
     describe('Modes (Strict vs. Loose)', () => {
         it('should throw in strict mode for unregistered methods', () => {
             const parser = new index_1.ZontaxParser([], { mode: 'strict' });

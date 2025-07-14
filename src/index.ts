@@ -118,13 +118,17 @@ export class ZontaxParser {
                         data.extensions[extName] = { value: args.length === 1 ? args[0] : args };
                     }
                 } else if (KNOWN_ZOD_METHODS.includes(methodName)) {
-                    if (['min', 'max', 'length', 'email', 'url', 'uuid'].includes(methodName)) {
+                    if (['min', 'max', 'length', 'email', 'url', 'uuid', 'int', 'positive', 'negative'].includes(methodName)) {
                         if (!data.validations) data.validations = {};
                         data.validations[methodName] = args.length > 0 ? args[0] : true;
                     } else if (['string', 'number', 'boolean', 'date'].includes(methodName)) {
                         data.type = methodName;
                     } else if (methodName === 'optional') {
                         data.optional = true;
+                    } else if (methodName === 'nullable') {
+                        data.nullable = true;
+                    } else if (methodName === 'default') {
+                        data.defaultValue = args[0];
                     } else if (methodName === 'describe') {
                         data.description = args[0];
                     } else if (methodName === 'object') {
@@ -133,6 +137,36 @@ export class ZontaxParser {
                     } else if (methodName === 'array') {
                         data.type = 'array';
                         data.of = args[0];
+                    } else if (methodName === 'enum') {
+                        data.type = 'enum';
+                        // For enum, parse the array literal argument
+                        const enumArg = current.arguments[0];
+                        if (enumArg.type === 'ArrayExpression') {
+                            data.values = enumArg.elements.map((elem: any) => this.buildDefinition(elem, path));
+                        } else {
+                            data.values = args[0];
+                        }
+                    } else if (methodName === 'literal') {
+                        data.type = 'literal';
+                        data.value = args[0];
+                    } else if (methodName === 'tuple') {
+                        data.type = 'tuple';
+                        // For tuple, parse the array literal argument
+                        const tupleArg = current.arguments[0];
+                        if (tupleArg.type === 'ArrayExpression') {
+                            data.items = tupleArg.elements.map((elem: any) => this.buildDefinition(elem, path));
+                        } else {
+                            data.items = args[0];
+                        }
+                    } else if (methodName === 'union') {
+                        data.type = 'union';
+                        // For union, parse the array literal argument
+                        const unionArg = current.arguments[0];
+                        if (unionArg.type === 'ArrayExpression') {
+                            data.options = unionArg.elements.map((elem: any) => this.buildDefinition(elem, path));
+                        } else {
+                            data.options = args[0];
+                        }
                     }
                 } else if (this.mode === 'loose') {
                     if (namespace) {
@@ -214,6 +248,15 @@ export class ZontaxParser {
         if (overlay.optional) {
             base.optional = true;
         }
+        if (overlay.nullable) {
+            base.nullable = true;
+        }
+        if (overlay.defaultValue !== undefined) {
+            base.defaultValue = overlay.defaultValue;
+        }
+        if (overlay.description !== undefined) {
+            base.description = overlay.description;
+        }
     }
     return base;
   }
@@ -226,6 +269,18 @@ export class ZontaxParser {
           chain = `z.object({ ${fieldsStr} })`;
       } else if (def.type === 'array') {
           chain = `z.array(${this.generateSchemaString(def.of)})`;
+      } else if (def.type === 'enum') {
+          const values = Array.isArray(def.values) ? def.values : [def.values];
+          const valuesStr = values.map((v: any) => JSON.stringify(v)).join(', ');
+          chain = `z.enum([${valuesStr}])`;
+      } else if (def.type === 'literal') {
+          chain = `z.literal(${JSON.stringify(def.value)})`;
+      } else if (def.type === 'tuple') {
+          const itemsStr = Array.isArray(def.items) ? def.items.map((item: any) => this.generateSchemaString(item)).join(', ') : '';
+          chain = `z.tuple([${itemsStr}])`;
+      } else if (def.type === 'union') {
+          const optionsStr = Array.isArray(def.options) ? def.options.map((option: any) => this.generateSchemaString(option)).join(', ') : '';
+          chain = `z.union([${optionsStr}])`;
       } else {
           chain = `z.${def.type}()`;
       }
@@ -238,6 +293,12 @@ export class ZontaxParser {
       }
       if (def.description) {
           chain += `.describe(${JSON.stringify(def.description)})`;
+      }
+      if (def.defaultValue !== undefined) {
+          chain += `.default(${JSON.stringify(def.defaultValue)})`;
+      }
+      if (def.nullable) {
+          chain += '.nullable()';
       }
       if (def.optional) {
           chain += '.optional()';
