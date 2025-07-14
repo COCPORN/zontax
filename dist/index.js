@@ -153,6 +153,9 @@ class ZontaxParser {
                         else if (methodName === 'optional') {
                             data.optional = true;
                         }
+                        else if (methodName === 'describe') {
+                            data.description = args[0];
+                        }
                         else if (methodName === 'object') {
                             data.type = 'object';
                             data.fields = args[0].fields;
@@ -275,6 +278,9 @@ class ZontaxParser {
                 const value = def.validations[key];
                 chain += `.${key}(${value === true ? '' : JSON.stringify(value)})`;
             }
+        }
+        if (def.description) {
+            chain += `.describe(${JSON.stringify(def.description)})`;
         }
         if (def.optional) {
             chain += '.optional()';
