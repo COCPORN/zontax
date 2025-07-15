@@ -8,6 +8,11 @@ export class ZontaxMergeError extends Error {
   }
 }
 
+// SECURITY NOTE: RegExp patterns in allowedOnPath are expected to be defined by 
+// developers in extension schemas, not end users. Simple path matching patterns
+// like "user.profile.*" or "^user\.address\.(street|city)$" are the intended use case.
+// The ReDoS validation below catches the most common problematic patterns while
+// allowing safe, developer-defined path matching expressions.
 export const ExtensionMethodSchema = z.object({
   name: z.string(),
   allowedOn: z.array(z.string()),
@@ -136,6 +141,11 @@ export class ZontaxParser {
     }
   }
 
+  // SECURITY NOTE: Input validation uses defense-in-depth with whitelist-first approach:
+  // 1. Primary: validateInputStructure ensures only valid Zontax syntax is allowed
+  // 2. Secondary: Pattern blacklist catches obvious dangerous constructs
+  // This is appropriate for parsing developer-defined schema extensions where the
+  // expected input format is well-defined and constrained.
   private validateInput(source: string): void {
     if (typeof source !== "string") {
       throw new ZontaxMergeError("Input must be a string");
@@ -344,6 +354,10 @@ export class ZontaxParser {
     return maxDepth;
   }
 
+  // SECURITY NOTE: Memory monitoring is Node.js-specific and will not work in browsers.
+  // In browser environments, other protections (timeout, complexity limits, input length)
+  // provide DoS protection. For browser-specific memory limiting, consider Web Workers
+  // with message passing and termination capabilities.
   private parseWithTimeout(source: string): Promise<any> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -623,6 +637,11 @@ export class ZontaxParser {
     }
   }
 
+  // SECURITY NOTE: ReDoS detection uses a comprehensive blacklist of known problematic patterns.
+  // While blacklisting cannot catch all possible ReDoS vulnerabilities, it covers the most
+  // common patterns and is appropriate for Zontax's use case where RegExp patterns are
+  // developer-defined for simple path matching (e.g., "user.profile.*"). The validation
+  // includes exceptions for safe anchored patterns commonly used in path matching.
   private validateRegExpPattern(pattern: RegExp): void {
     const source = pattern.source;
     const flags = pattern.flags;
@@ -1154,6 +1173,10 @@ export class ZontaxParser {
     return `z.${method}${argStr}`;
   }
 
+  // SECURITY NOTE: JSON.stringify safely escapes user data in generated schema strings.
+  // This prevents injection attacks by properly escaping quotes, backslashes, and control
+  // characters. The generated strings are intended for direct Zod usage, not eval().
+  // JSON.stringify is the standard and safe way to embed user data in generated code.
   private generateSchemaString(def: any): string {
     if (!def || !def.type) return "";
     let chain = "";
