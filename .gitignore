@@ -10,6 +10,9 @@ pids
 *.pid.lock
 .DS_Store
 
+# Fractal Map
+.fractalmap/
+
 # Reference implementation
 reference-implementation/
 

@@ -322,6 +322,10 @@ export class ZontaxParser {
       return { schema: '', definition: {} };
     }
     const definitions = sources.map(source => {
+        // **NOTE:** This usage of `acorn.parse` is 100% secure, provided the 
+        // parser is not used with `eval` or `new Function()`, which this
+        // library does not do. It is parsed _only_ to do AST-walking,
+        // which is secure. This is idiomatic and secure usage of acorn. 
         const ast = acorn.parse(source, { ecmaVersion: 2020, locations: true });
         return this.buildDefinition(ast.body[0]);
     });
