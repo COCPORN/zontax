@@ -53,30 +53,43 @@ export interface ZontaxParserOptions {
 }
 
 const KNOWN_ZOD_METHODS = [
+  // Basic types
   "string",
   "number",
   "boolean",
   "date",
   "datetime",
+  "bigint",
+  "symbol",
+  "null",
+  "undefined",
+  "void",
+  "any",
+  "unknown",
+  "never",
+  // Composite types
   "object",
   "array",
+  "tuple",
+  "union",
+  "enum",
+  "literal",
+  "record",
+  // Validations
   "min",
   "max",
   "length",
   "email",
   "url",
   "uuid",
-  "optional",
-  "nullable",
-  "default",
   "int",
   "positive",
   "negative",
+  // Modifiers
+  "optional",
+  "nullable",
+  "default",
   "describe",
-  "enum",
-  "literal",
-  "tuple",
-  "union",
 ];
 
 export class ZontaxParser {
@@ -863,9 +876,13 @@ export class ZontaxParser {
               if (!data.validations) data.validations = {};
               data.validations[methodName] = args.length > 0 ? args[0] : true;
             } else if (
-              ["string", "number", "boolean", "date", "datetime"].includes(methodName)
+              ["string", "number", "boolean", "date", "datetime", "bigint", "symbol", "null", "undefined", "void", "any", "unknown", "never"].includes(methodName)
             ) {
               data.type = methodName === "datetime" ? "date" : methodName;
+            } else if (methodName === "record") {
+              data.type = "record";
+              data.keySchema = args[0];
+              data.valueSchema = args[1];
             } else if (methodName === "optional") {
               data.optional = true;
             } else if (methodName === "nullable") {
@@ -1188,6 +1205,8 @@ export class ZontaxParser {
       chain = `z.object({ ${fieldsStr} })`;
     } else if (def.type === "array") {
       chain = `z.array(${this.generateSchemaString(def.of)})`;
+    } else if (def.type === "record") {
+      chain = `z.record(${this.generateSchemaString(def.keySchema)}, ${this.generateSchemaString(def.valueSchema)})`;
     } else if (def.type === "enum") {
       const values = Array.isArray(def.values) ? def.values : [def.values];
       const valuesStr = values.map((v: any) => JSON.stringify(v)).join(", ");

@@ -83,30 +83,43 @@ exports.ExtensionMethodSchema = zod_1.z.object({
     }, "RegExp patterns must not contain potentially dangerous constructs that could cause ReDoS"),
 });
 const KNOWN_ZOD_METHODS = [
+    // Basic types
     "string",
     "number",
     "boolean",
     "date",
     "datetime",
+    "bigint",
+    "symbol",
+    "null",
+    "undefined",
+    "void",
+    "any",
+    "unknown",
+    "never",
+    // Composite types
     "object",
     "array",
+    "tuple",
+    "union",
+    "enum",
+    "literal",
+    "record",
+    // Validations
     "min",
     "max",
     "length",
     "email",
     "url",
     "uuid",
-    "optional",
-    "nullable",
-    "default",
     "int",
     "positive",
     "negative",
+    // Modifiers
+    "optional",
+    "nullable",
+    "default",
     "describe",
-    "enum",
-    "literal",
-    "tuple",
-    "union",
 ];
 class ZontaxParser {
     constructor(options = {}, registrations = []) {
@@ -813,8 +826,13 @@ class ZontaxParser {
                                 data.validations = {};
                             data.validations[methodName] = args.length > 0 ? args[0] : true;
                         }
-                        else if (["string", "number", "boolean", "date", "datetime"].includes(methodName)) {
+                        else if (["string", "number", "boolean", "date", "datetime", "bigint", "symbol", "null", "undefined", "void", "any", "unknown", "never"].includes(methodName)) {
                             data.type = methodName === "datetime" ? "date" : methodName;
+                        }
+                        else if (methodName === "record") {
+                            data.type = "record";
+                            data.keySchema = args[0];
+                            data.valueSchema = args[1];
                         }
                         else if (methodName === "optional") {
                             data.optional = true;
@@ -1114,6 +1132,9 @@ class ZontaxParser {
         }
         else if (def.type === "array") {
             chain = `z.array(${this.generateSchemaString(def.of)})`;
+        }
+        else if (def.type === "record") {
+            chain = `z.record(${this.generateSchemaString(def.keySchema)}, ${this.generateSchemaString(def.valueSchema)})`;
         }
         else if (def.type === "enum") {
             const values = Array.isArray(def.values) ? def.values : [def.values];
