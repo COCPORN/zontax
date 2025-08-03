@@ -12,6 +12,7 @@ pids
 
 # Fractal Map
 .fractalmap/
+.sidetrack/
 
 # Reference implementation
 reference-implementation/

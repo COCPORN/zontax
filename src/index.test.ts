@@ -1,5 +1,5 @@
 import { ZontaxParser, Extension, ZontaxMergeError } from './index';
-import { parseZodString } from 'zod-subset-parser';
+const { parseZodString } = require('zod-subset-parser/zod4');
 
 // --- Test Data (Category-less) ---
 const uiSchema: Extension[] = [

@@ -1,7 +1,16 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const index_1 = require("./index");
-const zod_subset_parser_1 = require("zod-subset-parser");
+const { parseZodString } = require('zod-subset-parser/zod4');
 // --- Test Data (Category-less) ---
 const uiSchema = [
     { name: 'label', allowedOn: ['string'], args: ['string'] },
@@ -15,166 +24,166 @@ const globalSchema = [
 ];
 describe('ZontaxParser', () => {
     describe('Initialization', () => {
-        it('should register global extensions', () => {
+        it('should register global extensions', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser = new index_1.ZontaxParser({}, [globalSchema]);
-            const { schema } = parser.parse('Z.string().analyticsId("test")');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should register namespaced extensions', () => {
+            const { schema } = yield parser.parse('Z.string().analyticsId("test")');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should register namespaced extensions', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser = new index_1.ZontaxParser({}, [{ namespace: 'ui', extensions: uiSchema }]);
-            const { schema } = parser.parse('Z.string().ui$label("Name")');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
+            const { schema } = yield parser.parse('Z.string().ui$label("Name")');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
     });
     describe('Composition (Multi-Schema Parsing)', () => {
         const parser = new index_1.ZontaxParser({}, [
             { namespace: 'ui', extensions: uiSchema },
             { namespace: 'doc', extensions: docSchema },
         ]);
-        it('should merge more than two schemas and produce a valid final schema', () => {
+        it('should merge more than two schemas and produce a valid final schema', () => __awaiter(void 0, void 0, void 0, function* () {
             const s1 = `Z.object({ user: Z.object({ name: Z.string() }) })`;
             const s2 = `Z.object({ user: Z.object({ name: Z.string().min(3) }) })`;
             const s3 = `Z.object({ user: Z.object({ name: Z.string().max(10) }) })`;
             const s4 = `Z.object({ user: Z.object({ name: Z.string().ui$label("Name") }) })`;
-            const { definition, schema } = parser.parse(s1, s2, s3, s4);
+            const { definition, schema } = yield parser.parse(s1, s2, s3, s4);
             const nameDef = definition.fields.user.fields.name;
             expect(nameDef.validations.min).toBe(3);
             expect(nameDef.validations.max).toBe(10);
             expect(nameDef.namespaces.ui.label.value).toBe("Name");
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should throw a detailed error on type mismatch', () => {
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should throw a detailed error on type mismatch', () => __awaiter(void 0, void 0, void 0, function* () {
             const s1 = `Z.object({ user: Z.object({ name: Z.string() }) })`;
             const s2 = `Z.object({ user: Z.object({ name: Z.number() }) })`;
             const expectedError = "Type mismatch at schema index 1 for field 'user.name': Cannot merge type 'number' into 'string'.";
-            expect(() => parser.parse(s1, s2)).toThrow(new index_1.ZontaxMergeError(expectedError));
-        });
-        it('should throw a detailed error on validation conflict', () => {
+            yield expect(parser.parse(s1, s2)).rejects.toThrow(new index_1.ZontaxMergeError(expectedError));
+        }));
+        it('should throw a detailed error on validation conflict', () => __awaiter(void 0, void 0, void 0, function* () {
             const s1 = `Z.object({ name: Z.string().min(3) })`;
             const s2 = `Z.object({ name: Z.string().min(4) })`;
             const expectedError = "Validation conflict at schema index 1 for field 'name': Mismatch for validation 'min'.";
-            expect(() => parser.parse(s1, s2)).toThrow(new index_1.ZontaxMergeError(expectedError));
-        });
+            yield expect(parser.parse(s1, s2)).rejects.toThrow(new index_1.ZontaxMergeError(expectedError));
+        }));
     });
     describe('Zod Method Support', () => {
         const parser = new index_1.ZontaxParser();
-        it('should support .describe() method', () => {
-            const { schema, definition } = parser.parse('Z.string().describe("A user name")');
+        it('should support .describe() method', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.string().describe("A user name")');
             expect(schema).toBe('z.string().describe("A user name")');
             expect(definition.description).toBe('A user name');
             expect(definition.type).toBe('string');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support .describe() with other methods', () => {
-            const { schema, definition } = parser.parse('Z.string().min(3).describe("Username").optional()');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .describe() with other methods', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.string().min(3).describe("Username").optional()');
             expect(schema).toBe('z.string().min(3).describe("Username").optional()');
             expect(definition.description).toBe('Username');
             expect(definition.validations.min).toBe(3);
             expect(definition.optional).toBe(true);
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support .describe() in object fields', () => {
-            const { schema, definition } = parser.parse('Z.object({name: Z.string().describe("User full name")})');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .describe() in object fields', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.object({name: Z.string().describe("User full name")})');
             expect(schema).toBe('z.object({ name: z.string().describe("User full name") })');
             expect(definition.fields.name.description).toBe('User full name');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support .describe() with validations', () => {
-            const { schema, definition } = parser.parse('Z.number().min(0).max(100).describe("Percentage value")');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .describe() with validations', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.number().min(0).max(100).describe("Percentage value")');
             expect(schema).toBe('z.number().max(100).min(0).describe("Percentage value")');
             expect(definition.description).toBe('Percentage value');
             expect(definition.validations.min).toBe(0);
             expect(definition.validations.max).toBe(100);
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support .nullable() method', () => {
-            const { schema, definition } = parser.parse('Z.string().nullable()');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .nullable() method', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.string().nullable()');
             expect(schema).toBe('z.string().nullable()');
             expect(definition.nullable).toBe(true);
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support .default() method', () => {
-            const { schema, definition } = parser.parse('Z.string().default("test")');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .default() method', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.string().default("test")');
             expect(schema).toBe('z.string().default("test")');
             expect(definition.defaultValue).toBe('test');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support number validations (int, positive, negative)', () => {
-            const { schema: intSchema } = parser.parse('Z.number().int()');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support number validations (int, positive, negative)', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema: intSchema } = yield parser.parse('Z.number().int()');
             expect(intSchema).toBe('z.number().int()');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(intSchema)).not.toThrow();
-            const { schema: positiveSchema } = parser.parse('Z.number().positive()');
+            expect(() => parseZodString(intSchema)).not.toThrow();
+            const { schema: positiveSchema } = yield parser.parse('Z.number().positive()');
             expect(positiveSchema).toBe('z.number().positive()');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(positiveSchema)).not.toThrow();
-            const { schema: negativeSchema } = parser.parse('Z.number().negative()');
+            expect(() => parseZodString(positiveSchema)).not.toThrow();
+            const { schema: negativeSchema } = yield parser.parse('Z.number().negative()');
             expect(negativeSchema).toBe('z.number().negative()');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(negativeSchema)).not.toThrow();
-        });
-        it('should support .enum() method', () => {
-            const { schema, definition } = parser.parse('Z.enum(["a", "b", "c"])');
+            expect(() => parseZodString(negativeSchema)).not.toThrow();
+        }));
+        it('should support .enum() method', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.enum(["a", "b", "c"])');
             expect(schema).toBe('z.enum(["a", "b", "c"])');
             expect(definition.type).toBe('enum');
             expect(definition.values).toEqual(['a', 'b', 'c']);
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support .literal() method', () => {
-            const { schema, definition } = parser.parse('Z.literal("test")');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .literal() method', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.literal("test")');
             expect(schema).toBe('z.literal("test")');
             expect(definition.type).toBe('literal');
             expect(definition.value).toBe('test');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support .tuple() method', () => {
-            const { schema, definition } = parser.parse('Z.tuple([Z.string(), Z.number()])');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .tuple() method', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.tuple([Z.string(), Z.number()])');
             expect(schema).toBe('z.tuple([z.string(), z.number()])');
             expect(definition.type).toBe('tuple');
             expect(definition.items).toHaveLength(2);
             expect(definition.items[0].type).toBe('string');
             expect(definition.items[1].type).toBe('number');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support .union() method', () => {
-            const { schema, definition } = parser.parse('Z.union([Z.string(), Z.number()])');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .union() method', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.union([Z.string(), Z.number()])');
             expect(schema).toBe('z.union([z.string(), z.number()])');
             expect(definition.type).toBe('union');
             expect(definition.options).toHaveLength(2);
             expect(definition.options[0].type).toBe('string');
             expect(definition.options[1].type).toBe('number');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support complex method chaining', () => {
-            const { schema, definition } = parser.parse('Z.string().min(3).max(10).optional().nullable().describe("Name")');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support complex method chaining', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.string().min(3).max(10).optional().nullable().describe("Name")');
             expect(schema).toBe('z.string().max(10).min(3).describe("Name").nullable().optional()');
             expect(definition.validations.min).toBe(3);
             expect(definition.validations.max).toBe(10);
             expect(definition.optional).toBe(true);
             expect(definition.nullable).toBe(true);
             expect(definition.description).toBe('Name');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
-        it('should support complex nested structures', () => {
-            const { schema } = parser.parse('Z.union([Z.string().email(), Z.literal("admin")])');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support complex nested structures', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema } = yield parser.parse('Z.union([Z.string().email(), Z.literal("admin")])');
             expect(schema).toBe('z.union([z.string().email(), z.literal("admin")])');
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
     });
     describe('Zod Version Support', () => {
-        it('should default to Zod 4', () => {
+        it('should default to Zod 4', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser = new index_1.ZontaxParser();
-            const { schema } = parser.parse('Z.string().describe("test")');
+            const { schema } = yield parser.parse('Z.string().describe("test")');
             expect(schema).toBe('z.string().describe("test")');
-        });
-        it('should support explicit Zod 4', () => {
+        }));
+        it('should support explicit Zod 4', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser = new index_1.ZontaxParser({ zodVersion: '4' });
-            const { schema } = parser.parse('Z.string().describe("test")');
+            const { schema } = yield parser.parse('Z.string().describe("test")');
             expect(schema).toBe('z.string().describe("test")');
-        });
-        it('should support explicit Zod 3', () => {
+        }));
+        it('should support explicit Zod 3', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser = new index_1.ZontaxParser({ zodVersion: '3' });
-            const { schema } = parser.parse('Z.string().describe("test")');
+            const { schema } = yield parser.parse('Z.string().describe("test")');
             expect(schema).toBe('z.string().describe("test")');
-        });
-        it('should generate identical output for basic types in both versions', () => {
+        }));
+        it('should generate identical output for basic types in both versions', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser3 = new index_1.ZontaxParser({ zodVersion: '3' });
             const parser4 = new index_1.ZontaxParser({ zodVersion: '4' });
             const basicTypes = [
@@ -191,13 +200,13 @@ describe('ZontaxParser', () => {
                 'Z.number().positive()',
                 'Z.number().negative()'
             ];
-            basicTypes.forEach(input => {
-                const schema3 = parser3.parse(input).schema;
-                const schema4 = parser4.parse(input).schema;
-                expect(schema3).toBe(schema4);
-            });
-        });
-        it('should generate identical output for complex types in both versions', () => {
+            for (const input of basicTypes) {
+                const result3 = yield parser3.parse(input);
+                const result4 = yield parser4.parse(input);
+                expect(result3.schema).toBe(result4.schema);
+            }
+        }));
+        it('should generate identical output for complex types in both versions', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser3 = new index_1.ZontaxParser({ zodVersion: '3' });
             const parser4 = new index_1.ZontaxParser({ zodVersion: '4' });
             const complexTypes = [
@@ -208,13 +217,13 @@ describe('ZontaxParser', () => {
                 'Z.tuple([Z.string(), Z.number()])',
                 'Z.union([Z.string(), Z.number()])'
             ];
-            complexTypes.forEach(input => {
-                const schema3 = parser3.parse(input).schema;
-                const schema4 = parser4.parse(input).schema;
-                expect(schema3).toBe(schema4);
-            });
-        });
-        it('should generate identical output for method chaining in both versions', () => {
+            for (const input of complexTypes) {
+                const result3 = yield parser3.parse(input);
+                const result4 = yield parser4.parse(input);
+                expect(result3.schema).toBe(result4.schema);
+            }
+        }));
+        it('should generate identical output for method chaining in both versions', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser3 = new index_1.ZontaxParser({ zodVersion: '3' });
             const parser4 = new index_1.ZontaxParser({ zodVersion: '4' });
             const chainedMethods = [
@@ -223,45 +232,45 @@ describe('ZontaxParser', () => {
                 'Z.number().int().positive().default(1)',
                 'Z.string().min(1).nullable().describe("Name")'
             ];
-            chainedMethods.forEach(input => {
-                const schema3 = parser3.parse(input).schema;
-                const schema4 = parser4.parse(input).schema;
-                expect(schema3).toBe(schema4);
-            });
-        });
-        it('should work with extensions in both versions', () => {
+            for (const input of chainedMethods) {
+                const result3 = yield parser3.parse(input);
+                const result4 = yield parser4.parse(input);
+                expect(result3.schema).toBe(result4.schema);
+            }
+        }));
+        it('should work with extensions in both versions', () => __awaiter(void 0, void 0, void 0, function* () {
             const extensions = [{ name: 'label', allowedOn: ['string'], args: ['string'] }];
             const parser3 = new index_1.ZontaxParser({ zodVersion: '3' }, [extensions]);
             const parser4 = new index_1.ZontaxParser({ zodVersion: '4' }, [extensions]);
             const input = 'Z.string().label("Name")';
-            const schema3 = parser3.parse(input).schema;
-            const schema4 = parser4.parse(input).schema;
-            expect(schema3).toBe('z.string()');
-            expect(schema4).toBe('z.string()');
-            expect(schema3).toBe(schema4);
-        });
-        it('should handle nested structures in both versions', () => {
+            const result3 = yield parser3.parse(input);
+            const result4 = yield parser4.parse(input);
+            expect(result3.schema).toBe('z.string()');
+            expect(result4.schema).toBe('z.string()');
+            expect(result3.schema).toBe(result4.schema);
+        }));
+        it('should handle nested structures in both versions', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser3 = new index_1.ZontaxParser({ zodVersion: '3' });
             const parser4 = new index_1.ZontaxParser({ zodVersion: '4' });
             const input = 'Z.object({user: Z.object({name: Z.string().min(1), age: Z.number().int()})})';
-            const schema3 = parser3.parse(input).schema;
-            const schema4 = parser4.parse(input).schema;
-            expect(schema3).toBe(schema4);
-            expect(schema3).toBe('z.object({ user: z.object({ name: z.string().min(1), age: z.number().int() }) })');
-        });
+            const result3 = yield parser3.parse(input);
+            const result4 = yield parser4.parse(input);
+            expect(result3.schema).toBe(result4.schema);
+            expect(result3.schema).toBe('z.object({ user: z.object({ name: z.string().min(1), age: z.number().int() }) })');
+        }));
     });
     describe('Modes (Strict vs. Loose)', () => {
-        it('should throw in strict mode for unregistered methods', () => {
+        it('should throw in strict mode for unregistered methods', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser = new index_1.ZontaxParser({ mode: 'strict' });
-            expect(() => parser.parse('Z.string().unregistered()')).toThrow();
-        });
-        it('should capture loose methods and produce a valid schema', () => {
+            yield expect(parser.parse('Z.string().unregistered()')).rejects.toThrow();
+        }));
+        it('should capture loose methods and produce a valid schema', () => __awaiter(void 0, void 0, void 0, function* () {
             const parser = new index_1.ZontaxParser({ mode: 'loose' });
-            const { definition, schema } = parser.parse('Z.string().author("John").meta$version(2)');
+            const { definition, schema } = yield parser.parse('Z.string().author("John").meta$version(2)');
             expect(definition.extensions.author.value).toBe('John');
             expect(definition.namespaces.meta.version.value).toBe(2);
-            expect(() => (0, zod_subset_parser_1.parseZodString)(schema)).not.toThrow();
-        });
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
     });
     describe('Introspection', () => {
         it('should return a map of all registered extensions', () => {
@@ -282,12 +291,16 @@ describe('ZontaxParser', () => {
             { namespace: 'ui', extensions: uiSchema },
             { namespace: 'doc', extensions: docSchema },
         ]);
-        const { definition } = parser.parse(`
-        Z.object({
-            name: Z.string().ui$label("Name").doc$internalDoc("Doc"),
-            age: Z.number().ui$placeholder("Age")
-        })
-    `);
+        let definition;
+        beforeAll(() => __awaiter(void 0, void 0, void 0, function* () {
+            const result = yield parser.parse(`
+            Z.object({
+                name: Z.string().ui$label("Name").doc$internalDoc("Doc"),
+                age: Z.number().ui$placeholder("Age")
+            })
+        `);
+            definition = result.definition;
+        }));
         describe('getDefinitionByNamespace', () => {
             it('should return a map of fields filtered by a single namespace', () => {
                 const uiView = index_1.ZontaxParser.getDefinitionByNamespace(definition, 'ui');
@@ -298,7 +311,11 @@ describe('ZontaxParser', () => {
         });
         describe('generateSchemaFromDefinition', () => {
             const looseParser = new index_1.ZontaxParser({ mode: 'loose' });
-            const looseDef = looseParser.parse(`Z.object({ name: Z.string().ui$label("Name") })`).definition;
+            let looseDef;
+            beforeAll(() => __awaiter(void 0, void 0, void 0, function* () {
+                const result = yield looseParser.parse(`Z.object({ name: Z.string().ui$label("Name") })`);
+                looseDef = result.definition;
+            }));
             it('should generate a schema for a specific namespace', () => {
                 const generated = index_1.ZontaxParser.generateSchemaFromDefinition(looseDef, 'ui');
                 expect(generated).toHaveLength(1);
@@ -316,28 +333,28 @@ describe('ZontaxParser', () => {
             }
         ];
         const parser = new index_1.ZontaxParser({}, [{ namespace: 'test', extensions: pathSchema }]);
-        it('should allow extension on an exact path match', () => {
+        it('should allow extension on an exact path match', () => __awaiter(void 0, void 0, void 0, function* () {
             const schema = `Z.object({ user: Z.object({ name: Z.string().test$restricted() }) })`;
-            expect(() => parser.parse(schema)).not.toThrow();
-        });
-        it('should allow extension on a wildcard path match', () => {
+            yield expect(parser.parse(schema)).resolves.not.toThrow();
+        }));
+        it('should allow extension on a wildcard path match', () => __awaiter(void 0, void 0, void 0, function* () {
             const schema = `Z.object({ user: Z.object({ profile: Z.object({ bio: Z.string().test$restricted() }) }) })`;
-            expect(() => parser.parse(schema)).not.toThrow();
-        });
-        it('should allow extension on a regex path match', () => {
+            yield expect(parser.parse(schema)).resolves.not.toThrow();
+        }));
+        it('should allow extension on a regex path match', () => __awaiter(void 0, void 0, void 0, function* () {
             const schema1 = `Z.object({ user: Z.object({ address: Z.object({ street: Z.string().test$restricted() }) }) })`;
             const schema2 = `Z.object({ user: Z.object({ address: Z.object({ city: Z.string().test$restricted() }) }) })`;
-            expect(() => parser.parse(schema1)).not.toThrow();
-            expect(() => parser.parse(schema2)).not.toThrow();
-        });
-        it('should throw an error for a disallowed path', () => {
+            yield expect(parser.parse(schema1)).resolves.not.toThrow();
+            yield expect(parser.parse(schema2)).resolves.not.toThrow();
+        }));
+        it('should throw an error for a disallowed path', () => __awaiter(void 0, void 0, void 0, function* () {
             const schema = `Z.object({ user: Z.object({ email: Z.string().test$restricted() }) })`;
-            expect(() => parser.parse(schema)).toThrow(index_1.ZontaxMergeError);
-            expect(() => parser.parse(schema)).toThrow("Extension 'test$restricted' is not allowed on path 'user.email'.");
-        });
-        it('should throw an error for a disallowed regex path', () => {
+            yield expect(parser.parse(schema)).rejects.toThrow(index_1.ZontaxMergeError);
+            yield expect(parser.parse(schema)).rejects.toThrow("Extension 'test$restricted' is not allowed on path 'user.email'.");
+        }));
+        it('should throw an error for a disallowed regex path', () => __awaiter(void 0, void 0, void 0, function* () {
             const schema = `Z.object({ user: Z.object({ address: Z.object({ country: Z.string().test$restricted() }) }) })`;
-            expect(() => parser.parse(schema)).toThrow("Extension 'test$restricted' is not allowed on path 'user.address.country'.");
-        });
+            yield expect(parser.parse(schema)).rejects.toThrow("Extension 'test$restricted' is not allowed on path 'user.address.country'.");
+        }));
     });
 });

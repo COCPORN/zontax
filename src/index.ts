@@ -57,6 +57,7 @@ const KNOWN_ZOD_METHODS = [
   "number",
   "boolean",
   "date",
+  "datetime",
   "object",
   "array",
   "min",
@@ -862,9 +863,9 @@ export class ZontaxParser {
               if (!data.validations) data.validations = {};
               data.validations[methodName] = args.length > 0 ? args[0] : true;
             } else if (
-              ["string", "number", "boolean", "date"].includes(methodName)
+              ["string", "number", "boolean", "date", "datetime"].includes(methodName)
             ) {
-              data.type = methodName;
+              data.type = methodName === "datetime" ? "date" : methodName;
             } else if (methodName === "optional") {
               data.optional = true;
             } else if (methodName === "nullable") {

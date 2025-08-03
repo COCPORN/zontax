@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 export declare class ZontaxMergeError extends Error {
     constructor(message: string);
 }
@@ -7,7 +7,7 @@ export declare const ExtensionMethodSchema: z.ZodObject<{
     allowedOn: z.ZodArray<z.ZodString, "many">;
     args: z.ZodArray<z.ZodString, "many">;
     description: z.ZodOptional<z.ZodString>;
-    allowedOnPath: z.ZodOptional<z.ZodArray<z.ZodUnion<[z.ZodString, z.ZodType<RegExp, z.ZodTypeDef, RegExp>]>, "many">>;
+    allowedOnPath: z.ZodEffects<z.ZodOptional<z.ZodArray<z.ZodUnion<[z.ZodString, z.ZodType<RegExp, z.ZodTypeDef, RegExp>]>, "many">>, (string | RegExp)[] | undefined, (string | RegExp)[] | undefined>;
 }, "strip", z.ZodTypeAny, {
     name: string;
     allowedOn: string[];
@@ -28,25 +28,45 @@ export interface SchemaRegistrationObject {
 }
 export type SchemaRegistration = Extension[] | SchemaRegistrationObject;
 export interface ZontaxParserOptions {
-    mode?: 'strict' | 'loose';
-    zodVersion?: '3' | '4';
+    mode?: "strict" | "loose";
+    zodVersion?: "3" | "4";
+    maxInputLength?: number;
+    parseTimeout?: number;
 }
 export declare class ZontaxParser {
     private globalExtensions;
     private namespacedExtensions;
     private mode;
     private zodVersion;
+    private maxInputLength;
+    private parseTimeout;
     constructor(options?: ZontaxParserOptions, registrations?: SchemaRegistration[]);
     private registerGlobal;
     private registerNamespace;
+    private validateInput;
+    private validateInputStructure;
+    private validateComplexStructure;
+    private hasBalancedDelimiters;
+    private calculateDelimiterDepth;
+    private parseWithTimeout;
+    private validateASTStructure;
+    private calculateASTComplexity;
+    private validateASTNodes;
+    private validateASTNode;
+    private validateDefinition;
+    private validateRegExpPattern;
+    private analyzeRegExpComplexity;
+    private calculateNestingDepth;
     private buildDefinition;
+    private generateSafeValue;
+    private deepClone;
     private deepMergeDefinitions;
     private generateVersionSpecificMethod;
     private generateSchemaString;
-    parse(...sources: string[]): {
+    parse(...sources: string[]): Promise<{
         schema: string;
         definition: any;
-    };
+    }>;
     getExtensions(): Record<string, Extension[]>;
     static getDefinitionByNamespace(definition: any, namespace: string): Record<string, any>;
     static generateSchemaFromDefinition(definition: any, namespace?: string): Extension[];
