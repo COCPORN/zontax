@@ -170,65 +170,8 @@ export class ZontaxParser {
       );
     }
     
-    // Whitelist approach - validate that input matches expected Zontax schema structure
-    if (!this.validateInputStructure(source)) {
-      throw new ZontaxMergeError("Input does not match expected Zontax schema structure");
-    }
-    
-    // Additional blacklist checks for known dangerous patterns (defense in depth)
-    const criticalPatterns = [
-      /\beval\s*\(/,                          // eval() calls
-      /\bnew\s+Function\s*\(/,                // Function constructor
-      /\bsetTimeout\s*\(/,                    // setTimeout with string
-      /\bsetInterval\s*\(/,                   // setInterval with string
-      /\bimport\s*\(/,                        // Dynamic imports
-      /\brequire\s*\(/,                       // CommonJS require
-      /\bprocess\s*\./,                       // Process object access
-      /\bglobal\s*\./,                        // Global object access
-      /\bwindow\s*\./,                        // Window object access
-      /\bdocument\s*\./,                      // Document object access
-      /\blocation\s*\./,                      // Location object access
-      /\bnavigator\s*\./,                     // Navigator object access
-      /\bhistory\s*\./,                       // History object access
-      /\bworker\s*\./,                        // Worker object access
-      /\bXMLHttpRequest\s*\(/,                // XMLHttpRequest
-      /\bfetch\s*\(/,                         // Fetch API
-      /\bwebSocket\s*\(/,                     // WebSocket
-      /\bmodule\s*\./,                        // Module access
-      /\bexports\s*\./,                       // Exports access
-      /\b__dirname\b/,                        // Node.js dirname
-      /\b__filename\b/,                       // Node.js filename
-      /\bBuffer\s*\(/,                        // Node.js Buffer
-      /\bfs\s*\./,                            // File system access
-      /\bpath\s*\./,                          // Path utilities
-      /\bos\s*\./,                            // OS utilities
-      /\bchild_process\s*\./,                 // Child process
-      /\bcluster\s*\./,                       // Cluster module
-      /\burl\s*\./,                           // URL module
-      /\bhttp\s*\./,                          // HTTP module
-      /\bhttps\s*\./,                         // HTTPS module
-      /\bnet\s*\./,                           // Net module
-      /\btls\s*\./,                           // TLS module
-      /\bdgram\s*\./,                         // Datagram module
-      /\bstream\s*\./,                        // Stream module
-      /\bevents\s*\./,                        // Events module
-      /\butil\s*\./,                          // Util module
-      /\bcrypto\s*\./,                        // Crypto module
-      /\bzlib\s*\./,                          // Zlib module
-      /\bquerystring\s*\./,                   // Query string module
-      /\bstring_decoder\s*\./,                // String decoder module
-      /\bv8\s*\./,                            // V8 module
-      /\bvm\s*\./,                            // VM module
-      /\bworker_threads\s*\./,                // Worker threads
-      /\basync_hooks\s*\./,                   // Async hooks
-      /\bperf_hooks\s*\./,                    // Performance hooks
-    ];
-    
-    for (const pattern of criticalPatterns) {
-      if (pattern.test(source)) {
-        throw new ZontaxMergeError("Input contains forbidden patterns");
-      }
-    }
+    // Let Acorn handle syntax validation - no need for regex pre-validation
+    // Security is provided by input length limits, AST complexity validation, and Acorn parsing options
   }
 
   private validateInputStructure(source: string): boolean {
@@ -247,8 +190,10 @@ export class ZontaxParser {
     const allowedPatterns = [
       // Basic Z.method() chains
       /^Z\.[a-zA-Z_$][a-zA-Z0-9_$]*\(\)/,
-      // Z.method().method() chains
-      /^Z\.[a-zA-Z_$][a-zA-Z0-9_$]*\([^)]*\)(\.[a-zA-Z_$][a-zA-Z0-9_$]*\([^)]*\))*$/,
+      // Z.method().method() chains with simple patterns
+      /^Z\.[a-zA-Z_$][a-zA-Z0-9_$]*\(/,
+      // Any string starting with Z. (for complex nested schemas)
+      /^Z\./,
       // Object literals
       /^\{[\s\S]*\}$/,
       // Array literals
@@ -368,6 +313,55 @@ export class ZontaxParser {
     return maxDepth;
   }
 
+  /**
+   * Escape actual newline characters inside string literals.
+   * JavaScript doesn't allow unescaped newlines in string literals,
+   * but schema definitions stored in databases may contain them.
+   */
+  private escapeNewlinesInStrings(source: string): string {
+    let result = '';
+    let inString = false;
+    let stringChar = '';
+    let i = 0;
+
+    while (i < source.length) {
+      const char = source[i];
+
+      if (inString) {
+        if (char === '\\' && i + 1 < source.length) {
+          // Escape sequence - copy both characters
+          result += char + source[i + 1];
+          i += 2;
+          continue;
+        } else if (char === stringChar) {
+          // End of string
+          inString = false;
+          result += char;
+        } else if (char === '\n') {
+          // Actual newline inside string - escape it
+          result += '\\n';
+        } else if (char === '\r') {
+          // Carriage return - escape it
+          result += '\\r';
+        } else if (char === '\t') {
+          // Tab - escape it
+          result += '\\t';
+        } else {
+          result += char;
+        }
+      } else {
+        if (char === '"' || char === "'") {
+          inString = true;
+          stringChar = char;
+        }
+        result += char;
+      }
+      i++;
+    }
+
+    return result;
+  }
+
   // SECURITY NOTE: Memory monitoring is Node.js-specific and will not work in browsers.
   // In browser environments, other protections (timeout, complexity limits, input length)
   // provide DoS protection. For browser-specific memory limiting, consider Web Workers
@@ -397,6 +391,11 @@ export class ZontaxParser {
       }
 
       try {
+        // Preprocess: escape actual newlines inside string literals
+        // JavaScript doesn't allow unescaped newlines in string literals,
+        // but schema definitions stored in databases may have them
+        const preprocessedSource = this.escapeNewlinesInStrings(source);
+
         // Enhanced acorn options for security
         const parseOptions = {
           ecmaVersion: 2020 as const,
@@ -405,9 +404,10 @@ export class ZontaxParser {
           allowImportExportEverywhere: false,
           allowAwaitOutsideFunction: false,
           allowHashBang: false,
+          allowReserved: true,  // Allow reserved words as property names
         };
 
-        const result = acorn.parse(source, parseOptions);
+        const result = acorn.parse(preprocessedSource, parseOptions);
         
         // Validate parsing time
         const parseTime = Date.now() - startTime;
@@ -610,14 +610,16 @@ export class ZontaxParser {
     
     const allowedNodeTypes = [
       "ExpressionStatement",
-      "CallExpression", 
+      "CallExpression",
       "MemberExpression",
       "ObjectExpression",
       "ArrayExpression",
       "Property",
       "Identifier",
       "Literal",
-      "UnaryExpression"
+      "UnaryExpression",
+      "TemplateLiteral",
+      "TemplateElement"
     ];
     
     if (!allowedNodeTypes.includes(node.type)) {
@@ -996,14 +998,30 @@ export class ZontaxParser {
     switch (node.type) {
       case "Literal":
         // Only allow safe literal values
-        if (node.value === null || 
-            typeof node.value === "string" || 
-            typeof node.value === "number" || 
+        if (node.value === null ||
+            typeof node.value === "string" ||
+            typeof node.value === "number" ||
             typeof node.value === "boolean") {
           return node.value;
         }
         throw new ZontaxMergeError("Unsupported literal value type");
-        
+
+      case "TemplateLiteral": {
+        // Support template literals (backtick strings) for multi-line strings
+        // Only support simple templates without interpolation (expressions)
+        if (node.expressions && node.expressions.length > 0) {
+          throw new ZontaxMergeError("Template literal interpolation (${...}) is not supported in Zontax schemas");
+        }
+        if (!Array.isArray(node.quasis) || node.quasis.length === 0) {
+          throw new ZontaxMergeError("Invalid template literal structure");
+        }
+        // For simple template literals, concatenate all quasis
+        // (there should only be one if no expressions)
+        return node.quasis
+          .map((quasi: any) => quasi.value?.cooked ?? quasi.value?.raw ?? "")
+          .join("");
+      }
+
       case "ObjectExpression": {
         if (!Array.isArray(node.properties)) {
           throw new ZontaxMergeError("Invalid object expression structure");

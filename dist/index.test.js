@@ -119,6 +119,27 @@ describe('ZontaxParser', () => {
             expect(negativeSchema).toBe('z.number().negative()');
             expect(() => parseZodString(negativeSchema)).not.toThrow();
         }));
+        it('should support negative number literals in min/max constraints', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema: minNegative, definition: minDef } = yield parser.parse('Z.number().min(-10)');
+            expect(minNegative).toBe('z.number().min(-10)');
+            expect(minDef.validations.min).toBe(-10);
+            // Note: parseZodString from zod-subset-parser doesn't support negative number literals
+            // but the generated schema is correct for actual Zod usage
+            const { schema: rangeNegative, definition: rangeDef } = yield parser.parse('Z.number().min(-100).max(100)');
+            expect(rangeNegative).toBe('z.number().max(100).min(-100)');
+            expect(rangeDef.validations.min).toBe(-100);
+            expect(rangeDef.validations.max).toBe(100);
+            const { schema: complexNegative, definition } = yield parser.parse('Z.object({ score: Z.number().min(-10).max(10) })');
+            expect(complexNegative).toBe('z.object({ score: z.number().max(10).min(-10) })');
+            expect(definition.fields.score.validations.min).toBe(-10);
+            expect(definition.fields.score.validations.max).toBe(10);
+            // Test with actual Zod to ensure the generated schema works
+            const { z } = require('zod');
+            const testSchema = eval(minNegative); // z.number().min(-10)
+            expect(testSchema.safeParse(-11).success).toBe(false);
+            expect(testSchema.safeParse(-10).success).toBe(true);
+            expect(testSchema.safeParse(0).success).toBe(true);
+        }));
         it('should support .enum() method', () => __awaiter(void 0, void 0, void 0, function* () {
             const { schema, definition } = yield parser.parse('Z.enum(["a", "b", "c"])');
             expect(schema).toBe('z.enum(["a", "b", "c"])');
@@ -149,6 +170,33 @@ describe('ZontaxParser', () => {
             expect(definition.options).toHaveLength(2);
             expect(definition.options[0].type).toBe('string');
             expect(definition.options[1].type).toBe('number');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .record() method with string keys', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.record(Z.string(), Z.number())');
+            expect(schema).toBe('z.record(z.string(), z.number())');
+            expect(definition.type).toBe('record');
+            expect(definition.keySchema.type).toBe('string');
+            expect(definition.valueSchema.type).toBe('number');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support .record() method with enum keys', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.record(Z.enum(["admin", "user"]), Z.boolean())');
+            expect(schema).toBe('z.record(z.enum(["admin", "user"]), z.boolean())');
+            expect(definition.type).toBe('record');
+            expect(definition.keySchema.type).toBe('enum');
+            expect(definition.keySchema.values).toEqual(['admin', 'user']);
+            expect(definition.valueSchema.type).toBe('boolean');
+            expect(() => parseZodString(schema)).not.toThrow();
+        }));
+        it('should support complex .record() with nested objects', () => __awaiter(void 0, void 0, void 0, function* () {
+            const { schema, definition } = yield parser.parse('Z.record(Z.string(), Z.object({ name: Z.string(), age: Z.number() }))');
+            expect(schema).toBe('z.record(z.string(), z.object({ name: z.string(), age: z.number() }))');
+            expect(definition.type).toBe('record');
+            expect(definition.keySchema.type).toBe('string');
+            expect(definition.valueSchema.type).toBe('object');
+            expect(definition.valueSchema.fields.name.type).toBe('string');
+            expect(definition.valueSchema.fields.age.type).toBe('number');
             expect(() => parseZodString(schema)).not.toThrow();
         }));
         it('should support complex method chaining', () => __awaiter(void 0, void 0, void 0, function* () {
@@ -322,6 +370,31 @@ describe('ZontaxParser', () => {
                 expect(generated[0].name).toBe('label');
             });
         });
+    });
+    describe('Template Literal Support', () => {
+        const parser = new index_1.ZontaxParser({ mode: 'loose' });
+        it('should support simple template literals (backtick strings)', () => __awaiter(void 0, void 0, void 0, function* () {
+            const schema = 'Z.object({ greeting: Z.literal(`Hello World`) })';
+            const result = yield parser.parse(schema);
+            expect(result.definition.fields.greeting.type).toBe('literal');
+            expect(result.definition.fields.greeting.value).toBe('Hello World');
+        }));
+        it('should support multi-line template literals', () => __awaiter(void 0, void 0, void 0, function* () {
+            const schema = 'Z.object({ message: Z.literal(`Line 1\nLine 2\nLine 3`) })';
+            const result = yield parser.parse(schema);
+            expect(result.definition.fields.message.type).toBe('literal');
+            expect(result.definition.fields.message.value).toBe('Line 1\nLine 2\nLine 3');
+        }));
+        it('should support template literals with special characters', () => __awaiter(void 0, void 0, void 0, function* () {
+            const schema = 'Z.object({ prompt: Z.literal(`Use "quotes" and \'apostrophes\'`) })';
+            const result = yield parser.parse(schema);
+            expect(result.definition.fields.prompt.type).toBe('literal');
+            expect(result.definition.fields.prompt.value).toBe(`Use "quotes" and 'apostrophes'`);
+        }));
+        it('should reject template literals with interpolation', () => __awaiter(void 0, void 0, void 0, function* () {
+            const schema = 'Z.object({ bad: Z.literal(`Hello ${name}`) })';
+            yield expect(parser.parse(schema)).rejects.toThrow('interpolation');
+        }));
     });
     describe('allowedOnPath Validation', () => {
         const pathSchema = [

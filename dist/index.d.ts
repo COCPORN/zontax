@@ -48,6 +48,12 @@ export declare class ZontaxParser {
     private validateComplexStructure;
     private hasBalancedDelimiters;
     private calculateDelimiterDepth;
+    /**
+     * Escape actual newline characters inside string literals.
+     * JavaScript doesn't allow unescaped newlines in string literals,
+     * but schema definitions stored in databases may contain them.
+     */
+    private escapeNewlinesInStrings;
     private parseWithTimeout;
     private validateASTStructure;
     private calculateASTComplexity;

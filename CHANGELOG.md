@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.1] - 2025-08-15
+
+### Fixed
+- **BREAKING FIX**: Removed overly restrictive regex validation that was incorrectly blocking legitimate schemas containing JavaScript reserved words (like `class`) as property names or common words (like "events") in description strings
+- Added `allowReserved: true` to Acorn parsing options to properly support reserved words as object property names
+- Schemas with properties named `class`, `function`, `var`, etc. now work correctly
+- Description strings containing words like "events", "process", "window" no longer trigger false security alerts
+- **UnaryExpression Support**: Negative number literals in constraints (e.g., `.min(-10)`) now parse correctly - fixed handling of UnaryExpression nodes in AST
+
+### Security
+- Maintained meaningful security protections: input length limits, AST complexity validation, and secure Acorn parsing options
+- Removed redundant and problematic regex-based "security" validation that served no actual protective purpose
+
 ## [0.14.0] - 2025-07-13
 
 ### Changed
