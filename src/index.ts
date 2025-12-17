@@ -315,8 +315,9 @@ export class ZontaxParser {
 
   /**
    * Escape actual newline characters inside string literals.
-   * JavaScript doesn't allow unescaped newlines in string literals,
+   * JavaScript doesn't allow unescaped newlines in regular string literals,
    * but schema definitions stored in databases may contain them.
+   * Note: Template literals (backticks) DO allow newlines, so we don't escape those.
    */
   private escapeNewlinesInStrings(source: string): string {
     let result = '';
@@ -337,20 +338,20 @@ export class ZontaxParser {
           // End of string
           inString = false;
           result += char;
-        } else if (char === '\n') {
-          // Actual newline inside string - escape it
+        } else if (char === '\n' && stringChar !== '`') {
+          // Actual newline inside regular string (not template literal) - escape it
           result += '\\n';
-        } else if (char === '\r') {
+        } else if (char === '\r' && stringChar !== '`') {
           // Carriage return - escape it
           result += '\\r';
-        } else if (char === '\t') {
+        } else if (char === '\t' && stringChar !== '`') {
           // Tab - escape it
           result += '\\t';
         } else {
           result += char;
         }
       } else {
-        if (char === '"' || char === "'") {
+        if (char === '"' || char === "'" || char === '`') {
           inString = true;
           stringChar = char;
         }

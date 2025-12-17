@@ -50,8 +50,9 @@ export declare class ZontaxParser {
     private calculateDelimiterDepth;
     /**
      * Escape actual newline characters inside string literals.
-     * JavaScript doesn't allow unescaped newlines in string literals,
+     * JavaScript doesn't allow unescaped newlines in regular string literals,
      * but schema definitions stored in databases may contain them.
+     * Note: Template literals (backticks) DO allow newlines, so we don't escape those.
      */
     private escapeNewlinesInStrings;
     private parseWithTimeout;
