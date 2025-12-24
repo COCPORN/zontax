@@ -1,6 +1,6 @@
 # Zontax
 
-Zontax is a powerful superset of the Zod schema language that allows you to embed arbitrary metadata directly within your schema definitions. It provides a parser that transforms and composes multiple schema strings into two separate, useful outputs:
+Zontax is a powerful superset of the Zod schema language that allows you to embed arbitrary metadata directly within your schema definitions. The code usecase is to be able to store schemas as *data*, not *code*. It provides a parser that transforms and composes multiple schema strings into two separate, useful outputs:
 
 1.  A **clean, merged Zod schema string** (using lowercase `z`) for validation.
 2.  A **structured JSON `definition` object** containing all the extracted metadata, perfect for UI generation, documentation, or API behavior.
