@@ -52,6 +52,139 @@ export interface ZontaxParserOptions {
   parseTimeout?: number;
 }
 
+// ============================================================================
+// Zontax Definition Types
+// These types describe the structure returned by ZontaxParser.parse()
+// ============================================================================
+
+/** Base properties shared by all definition types */
+export interface ZontaxDefinitionBase {
+  type: string;
+  optional?: boolean;
+  nullable?: boolean;
+  defaultValue?: unknown;
+  description?: string;
+  validations?: ZontaxValidations;
+  extensions?: Record<string, { value: unknown }>;
+  namespaces?: Record<string, Record<string, { value: unknown }>>;
+}
+
+/** Validation constraints that can be applied to types */
+export interface ZontaxValidations {
+  min?: number;
+  max?: number;
+  length?: number;
+  email?: boolean;
+  url?: boolean;
+  uuid?: boolean;
+  int?: boolean;
+  positive?: boolean;
+  negative?: boolean;
+}
+
+/** Primitive types: string, number, boolean, date, bigint, symbol, null, undefined, void, any, unknown, never */
+export interface ZontaxPrimitiveDefinition extends ZontaxDefinitionBase {
+  type: "string" | "number" | "boolean" | "date" | "bigint" | "symbol" | "null" | "undefined" | "void" | "any" | "unknown" | "never";
+}
+
+/** Object type with named fields */
+export interface ZontaxObjectDefinition extends ZontaxDefinitionBase {
+  type: "object";
+  fields: Record<string, ZontaxDefinition>;
+}
+
+/** Array type with element schema */
+export interface ZontaxArrayDefinition extends ZontaxDefinitionBase {
+  type: "array";
+  of: ZontaxDefinition;
+}
+
+/** Enum type with allowed values */
+export interface ZontaxEnumDefinition extends ZontaxDefinitionBase {
+  type: "enum";
+  values: unknown[];
+}
+
+/**
+ * Literal type with a single allowed value.
+ * IMPORTANT: The value is stored in the `value` property, NOT `literal`.
+ */
+export interface ZontaxLiteralDefinition extends ZontaxDefinitionBase {
+  type: "literal";
+  /** The literal value. Access via `.value`, NOT `.literal` */
+  value: unknown;
+}
+
+/** Tuple type with ordered item schemas */
+export interface ZontaxTupleDefinition extends ZontaxDefinitionBase {
+  type: "tuple";
+  items: ZontaxDefinition[];
+}
+
+/** Union type with multiple options */
+export interface ZontaxUnionDefinition extends ZontaxDefinitionBase {
+  type: "union";
+  options: ZontaxDefinition[];
+}
+
+/** Record type with key and value schemas */
+export interface ZontaxRecordDefinition extends ZontaxDefinitionBase {
+  type: "record";
+  keySchema: ZontaxDefinition;
+  valueSchema: ZontaxDefinition;
+}
+
+/** Union of all possible definition types */
+export type ZontaxDefinition =
+  | ZontaxPrimitiveDefinition
+  | ZontaxObjectDefinition
+  | ZontaxArrayDefinition
+  | ZontaxEnumDefinition
+  | ZontaxLiteralDefinition
+  | ZontaxTupleDefinition
+  | ZontaxUnionDefinition
+  | ZontaxRecordDefinition;
+
+/** Result returned by ZontaxParser.parse() */
+export interface ZontaxParseResult {
+  /** The generated Zod schema string */
+  schema: string;
+  /** The parsed definition structure */
+  definition: ZontaxDefinition;
+}
+
+// ============================================================================
+// Type Guards for narrowing ZontaxDefinition
+// ============================================================================
+
+export function isObjectDefinition(def: ZontaxDefinition): def is ZontaxObjectDefinition {
+  return def.type === "object";
+}
+
+export function isArrayDefinition(def: ZontaxDefinition): def is ZontaxArrayDefinition {
+  return def.type === "array";
+}
+
+export function isEnumDefinition(def: ZontaxDefinition): def is ZontaxEnumDefinition {
+  return def.type === "enum";
+}
+
+export function isLiteralDefinition(def: ZontaxDefinition): def is ZontaxLiteralDefinition {
+  return def.type === "literal";
+}
+
+export function isTupleDefinition(def: ZontaxDefinition): def is ZontaxTupleDefinition {
+  return def.type === "tuple";
+}
+
+export function isUnionDefinition(def: ZontaxDefinition): def is ZontaxUnionDefinition {
+  return def.type === "union";
+}
+
+export function isRecordDefinition(def: ZontaxDefinition): def is ZontaxRecordDefinition {
+  return def.type === "record";
+}
+
 const KNOWN_ZOD_METHODS = [
   // Basic types
   "string",
@@ -1272,9 +1405,9 @@ export class ZontaxParser {
     return chain;
   }
 
-  async parse(...sources: string[]): Promise<{ schema: string; definition: any }> {
+  async parse(...sources: string[]): Promise<ZontaxParseResult> {
     if (sources.length === 0) {
-      return { schema: "", definition: {} };
+      return { schema: "", definition: { type: "object", fields: {} } as ZontaxObjectDefinition };
     }
     
     const definitions = await Promise.all(

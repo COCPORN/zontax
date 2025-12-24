@@ -43,6 +43,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ZontaxParser = exports.ExtensionMethodSchema = exports.ZontaxMergeError = void 0;
+exports.isObjectDefinition = isObjectDefinition;
+exports.isArrayDefinition = isArrayDefinition;
+exports.isEnumDefinition = isEnumDefinition;
+exports.isLiteralDefinition = isLiteralDefinition;
+exports.isTupleDefinition = isTupleDefinition;
+exports.isUnionDefinition = isUnionDefinition;
+exports.isRecordDefinition = isRecordDefinition;
 const acorn = __importStar(require("acorn"));
 const zod_1 = require("zod");
 class ZontaxMergeError extends Error {
@@ -82,6 +89,30 @@ exports.ExtensionMethodSchema = zod_1.z.object({
         return true;
     }, "RegExp patterns must not contain potentially dangerous constructs that could cause ReDoS"),
 });
+// ============================================================================
+// Type Guards for narrowing ZontaxDefinition
+// ============================================================================
+function isObjectDefinition(def) {
+    return def.type === "object";
+}
+function isArrayDefinition(def) {
+    return def.type === "array";
+}
+function isEnumDefinition(def) {
+    return def.type === "enum";
+}
+function isLiteralDefinition(def) {
+    return def.type === "literal";
+}
+function isTupleDefinition(def) {
+    return def.type === "tuple";
+}
+function isUnionDefinition(def) {
+    return def.type === "union";
+}
+function isRecordDefinition(def) {
+    return def.type === "record";
+}
 const KNOWN_ZOD_METHODS = [
     // Basic types
     "string",
@@ -1208,7 +1239,7 @@ class ZontaxParser {
     parse(...sources) {
         return __awaiter(this, void 0, void 0, function* () {
             if (sources.length === 0) {
-                return { schema: "", definition: {} };
+                return { schema: "", definition: { type: "object", fields: {} } };
             }
             const definitions = yield Promise.all(sources.map((source) => __awaiter(this, void 0, void 0, function* () {
                 this.validateInput(source);

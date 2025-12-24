@@ -1,4 +1,14 @@
-import { ZontaxParser, Extension, ZontaxMergeError } from './index';
+import {
+  ZontaxParser,
+  Extension,
+  ZontaxMergeError,
+  ZontaxObjectDefinition,
+  ZontaxEnumDefinition,
+  ZontaxLiteralDefinition,
+  ZontaxTupleDefinition,
+  ZontaxUnionDefinition,
+  ZontaxRecordDefinition,
+} from './index';
 const { parseZodString } = require('zod-subset-parser/zod4');
 
 // --- Test Data (Category-less) ---
@@ -45,11 +55,13 @@ describe('ZontaxParser', () => {
         const s4 = `Z.object({ user: Z.object({ name: Z.string().ui$label("Name") }) })`;
 
         const { definition, schema } = await parser.parse(s1, s2, s3, s4);
-        const nameDef = definition.fields.user.fields.name;
+        const objDef = definition as ZontaxObjectDefinition;
+        const userDef = objDef.fields.user as ZontaxObjectDefinition;
+        const nameDef = userDef.fields.name;
 
-        expect(nameDef.validations.min).toBe(3);
-        expect(nameDef.validations.max).toBe(10);
-        expect(nameDef.namespaces.ui.label.value).toBe("Name");
+        expect(nameDef.validations!.min).toBe(3);
+        expect(nameDef.validations!.max).toBe(10);
+        expect(nameDef.namespaces!.ui.label.value).toBe("Name");
         expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -83,7 +95,7 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.string().min(3).describe("Username").optional()');
       expect(schema).toBe('z.string().min(3).describe("Username").optional()');
       expect(definition.description).toBe('Username');
-      expect(definition.validations.min).toBe(3);
+      expect(definition.validations!.min).toBe(3);
       expect(definition.optional).toBe(true);
       expect(() => parseZodString(schema)).not.toThrow();
     });
@@ -91,7 +103,7 @@ describe('ZontaxParser', () => {
     it('should support .describe() in object fields', async () => {
       const { schema, definition } = await parser.parse('Z.object({name: Z.string().describe("User full name")})');
       expect(schema).toBe('z.object({ name: z.string().describe("User full name") })');
-      expect(definition.fields.name.description).toBe('User full name');
+      expect((definition as ZontaxObjectDefinition).fields.name.description).toBe('User full name');
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -99,8 +111,8 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.number().min(0).max(100).describe("Percentage value")');
       expect(schema).toBe('z.number().max(100).min(0).describe("Percentage value")');
       expect(definition.description).toBe('Percentage value');
-      expect(definition.validations.min).toBe(0);
-      expect(definition.validations.max).toBe(100);
+      expect(definition.validations!.min).toBe(0);
+      expect(definition.validations!.max).toBe(100);
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -135,20 +147,21 @@ describe('ZontaxParser', () => {
     it('should support negative number literals in min/max constraints', async () => {
       const { schema: minNegative, definition: minDef } = await parser.parse('Z.number().min(-10)');
       expect(minNegative).toBe('z.number().min(-10)');
-      expect(minDef.validations.min).toBe(-10);
+      expect(minDef.validations!.min).toBe(-10);
       // Note: parseZodString from zod-subset-parser doesn't support negative number literals
       // but the generated schema is correct for actual Zod usage
 
       const { schema: rangeNegative, definition: rangeDef } = await parser.parse('Z.number().min(-100).max(100)');
       expect(rangeNegative).toBe('z.number().max(100).min(-100)');
-      expect(rangeDef.validations.min).toBe(-100);
-      expect(rangeDef.validations.max).toBe(100);
+      expect(rangeDef.validations!.min).toBe(-100);
+      expect(rangeDef.validations!.max).toBe(100);
 
       const { schema: complexNegative, definition } = await parser.parse('Z.object({ score: Z.number().min(-10).max(10) })');
       expect(complexNegative).toBe('z.object({ score: z.number().max(10).min(-10) })');
-      expect(definition.fields.score.validations.min).toBe(-10);
-      expect(definition.fields.score.validations.max).toBe(10);
-      
+      const objDef = definition as ZontaxObjectDefinition;
+      expect(objDef.fields.score.validations!.min).toBe(-10);
+      expect(objDef.fields.score.validations!.max).toBe(10);
+
       // Test with actual Zod to ensure the generated schema works
       const { z } = require('zod');
       const testSchema = eval(minNegative); // z.number().min(-10)
@@ -161,7 +174,7 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.enum(["a", "b", "c"])');
       expect(schema).toBe('z.enum(["a", "b", "c"])');
       expect(definition.type).toBe('enum');
-      expect(definition.values).toEqual(['a', 'b', 'c']);
+      expect((definition as ZontaxEnumDefinition).values).toEqual(['a', 'b', 'c']);
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -169,7 +182,7 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.literal("test")');
       expect(schema).toBe('z.literal("test")');
       expect(definition.type).toBe('literal');
-      expect(definition.value).toBe('test');
+      expect((definition as ZontaxLiteralDefinition).value).toBe('test');
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -177,9 +190,10 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.tuple([Z.string(), Z.number()])');
       expect(schema).toBe('z.tuple([z.string(), z.number()])');
       expect(definition.type).toBe('tuple');
-      expect(definition.items).toHaveLength(2);
-      expect(definition.items[0].type).toBe('string');
-      expect(definition.items[1].type).toBe('number');
+      const tupleDef = definition as ZontaxTupleDefinition;
+      expect(tupleDef.items).toHaveLength(2);
+      expect(tupleDef.items[0].type).toBe('string');
+      expect(tupleDef.items[1].type).toBe('number');
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -187,9 +201,10 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.union([Z.string(), Z.number()])');
       expect(schema).toBe('z.union([z.string(), z.number()])');
       expect(definition.type).toBe('union');
-      expect(definition.options).toHaveLength(2);
-      expect(definition.options[0].type).toBe('string');
-      expect(definition.options[1].type).toBe('number');
+      const unionDef = definition as ZontaxUnionDefinition;
+      expect(unionDef.options).toHaveLength(2);
+      expect(unionDef.options[0].type).toBe('string');
+      expect(unionDef.options[1].type).toBe('number');
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -197,8 +212,9 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.record(Z.string(), Z.number())');
       expect(schema).toBe('z.record(z.string(), z.number())');
       expect(definition.type).toBe('record');
-      expect(definition.keySchema.type).toBe('string');
-      expect(definition.valueSchema.type).toBe('number');
+      const recordDef = definition as ZontaxRecordDefinition;
+      expect(recordDef.keySchema.type).toBe('string');
+      expect(recordDef.valueSchema.type).toBe('number');
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -206,9 +222,10 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.record(Z.enum(["admin", "user"]), Z.boolean())');
       expect(schema).toBe('z.record(z.enum(["admin", "user"]), z.boolean())');
       expect(definition.type).toBe('record');
-      expect(definition.keySchema.type).toBe('enum');
-      expect(definition.keySchema.values).toEqual(['admin', 'user']);
-      expect(definition.valueSchema.type).toBe('boolean');
+      const recordDef = definition as ZontaxRecordDefinition;
+      expect(recordDef.keySchema.type).toBe('enum');
+      expect((recordDef.keySchema as ZontaxEnumDefinition).values).toEqual(['admin', 'user']);
+      expect(recordDef.valueSchema.type).toBe('boolean');
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
@@ -216,18 +233,20 @@ describe('ZontaxParser', () => {
       const { schema, definition } = await parser.parse('Z.record(Z.string(), Z.object({ name: Z.string(), age: Z.number() }))');
       expect(schema).toBe('z.record(z.string(), z.object({ name: z.string(), age: z.number() }))');
       expect(definition.type).toBe('record');
-      expect(definition.keySchema.type).toBe('string');
-      expect(definition.valueSchema.type).toBe('object');
-      expect(definition.valueSchema.fields.name.type).toBe('string');
-      expect(definition.valueSchema.fields.age.type).toBe('number');
+      const recordDef = definition as ZontaxRecordDefinition;
+      expect(recordDef.keySchema.type).toBe('string');
+      expect(recordDef.valueSchema.type).toBe('object');
+      const valueDef = recordDef.valueSchema as ZontaxObjectDefinition;
+      expect(valueDef.fields.name.type).toBe('string');
+      expect(valueDef.fields.age.type).toBe('number');
       expect(() => parseZodString(schema)).not.toThrow();
     });
 
     it('should support complex method chaining', async () => {
       const { schema, definition } = await parser.parse('Z.string().min(3).max(10).optional().nullable().describe("Name")');
       expect(schema).toBe('z.string().max(10).min(3).describe("Name").nullable().optional()');
-      expect(definition.validations.min).toBe(3);
-      expect(definition.validations.max).toBe(10);
+      expect(definition.validations!.min).toBe(3);
+      expect(definition.validations!.max).toBe(10);
       expect(definition.optional).toBe(true);
       expect(definition.nullable).toBe(true);
       expect(definition.description).toBe('Name');
@@ -360,8 +379,8 @@ describe('ZontaxParser', () => {
     it('should capture loose methods and produce a valid schema', async () => {
       const parser = new ZontaxParser({ mode: 'loose' });
       const { definition, schema } = await parser.parse('Z.string().author("John").meta$version(2)');
-      expect(definition.extensions.author.value).toBe('John');
-      expect(definition.namespaces.meta.version.value).toBe(2);
+      expect(definition.extensions!.author.value).toBe('John');
+      expect(definition.namespaces!.meta.version.value).toBe(2);
       expect(() => parseZodString(schema)).not.toThrow();
     });
   });
@@ -431,22 +450,28 @@ describe('ZontaxParser', () => {
     it('should support simple template literals (backtick strings)', async () => {
       const schema = 'Z.object({ greeting: Z.literal(`Hello World`) })';
       const result = await parser.parse(schema);
-      expect(result.definition.fields.greeting.type).toBe('literal');
-      expect(result.definition.fields.greeting.value).toBe('Hello World');
+      const objDef = result.definition as ZontaxObjectDefinition;
+      const greetingDef = objDef.fields.greeting as ZontaxLiteralDefinition;
+      expect(greetingDef.type).toBe('literal');
+      expect(greetingDef.value).toBe('Hello World');
     });
 
     it('should support multi-line template literals', async () => {
       const schema = 'Z.object({ message: Z.literal(`Line 1\nLine 2\nLine 3`) })';
       const result = await parser.parse(schema);
-      expect(result.definition.fields.message.type).toBe('literal');
-      expect(result.definition.fields.message.value).toBe('Line 1\nLine 2\nLine 3');
+      const objDef = result.definition as ZontaxObjectDefinition;
+      const messageDef = objDef.fields.message as ZontaxLiteralDefinition;
+      expect(messageDef.type).toBe('literal');
+      expect(messageDef.value).toBe('Line 1\nLine 2\nLine 3');
     });
 
     it('should support template literals with special characters', async () => {
       const schema = 'Z.object({ prompt: Z.literal(`Use "quotes" and \'apostrophes\'`) })';
       const result = await parser.parse(schema);
-      expect(result.definition.fields.prompt.type).toBe('literal');
-      expect(result.definition.fields.prompt.value).toBe(`Use "quotes" and 'apostrophes'`);
+      const objDef = result.definition as ZontaxObjectDefinition;
+      const promptDef = objDef.fields.prompt as ZontaxLiteralDefinition;
+      expect(promptDef.type).toBe('literal');
+      expect(promptDef.value).toBe(`Use "quotes" and 'apostrophes'`);
     });
 
     it('should reject template literals with interpolation', async () => {
